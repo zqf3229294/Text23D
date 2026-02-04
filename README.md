@@ -1,50 +1,81 @@
-# Text23D
+# Text23D Mechanical
 
-Text23D is a research project focused on developing AI tools that allow users to create 3D models using text, audio, or UI interactions. The goal is to enable users to generate simple or complex 3D models without needing to perform complex manipulations. Users can share their 3D models in presentations to better express their ideas.
+## Overview
 
-## Features
+Text23D Mechanical is an AI-Assisted Mechanical Design Platform, this project aims to develop an **open-source, cloud-based AI-assisted mechanical design platform** that enables users to generate, edit, and analyze **engineering-grade 2D production drawings and 3D parametric mechanical models** directly from **natural-language and image input**.
 
-- **Text to 3D**: Generate 3D models by describing them in text.
-- **Audio to 3D**: Create 3D models using voice commands.
-- **UI Interaction**: Build 3D models through an intuitive user interface.
-- **Model Sharing**: Share your 3D models in presentations and other formats.
+The platform is designed to bridge the gap between recent advances in artificial intelligence and **practical, manufacturable mechanical engineering design**, with a focus on accuracy, constraints, and real-world engineering logic rather than purely visual geometry.
 
-## Getting Started
+---
 
-To get started with Text23D, follow these steps:
+## Project Vision
 
-1. Clone the repository:
-    ```sh
-    git clone https://github.com/yourusername/Text23D.git
-    ```
-2. Navigate to the project directory:
-    ```sh
-    cd Text23D
-    ```
-3. Install the dependencies:
-    ```sh
-    npm install
-    ```
-4. Run the application:
-    ```sh
-    npm start
-    ```
+The long-term vision of this project is to create an **AI-driven engineering assistant** that can:
 
-## Usage
+- Understand **design intent** expressed in natural language
+- Interpret **reference images and sketches**
+- Generate **parametric, constraint-aware CAD models**
+- Automatically produce **engineering drawings**
+- Perform **engineering analysis and validation**
+- Support iterative refinement through human–AI collaboration
 
-1. **Text Input**: Type a description of the 3D model you want to create.
-2. **Audio Input**: Use voice commands to describe the 3D model.
-3. **UI Interaction**: Use the user interface to build and customize your 3D model.
-4. **Share**: Export and share your 3D models in your presentations.
+The platform is intended to support engineers, educators, students, researchers, and small manufacturers who require **functional, production-ready designs**, not just visual representations.
+
+---
+
+## Core Capabilities (Planned)
+
+### 1. Natural-Language & Image-Based Design Input
+- Accept high-level design descriptions in text
+- Incorporate reference images or sketches
+- Translate intent into structured mechanical parameters
+
+### 2. Parametric 3D Mechanical Modeling
+- Generate editable, constraint-based CAD models
+- Preserve design intent through parametric relationships
+- Enable downstream modification and reuse
+
+### 3. Engineering Constraints & Manufacturability
+- Embed material properties, loads, and boundary conditions
+- Apply tolerance and manufacturability rules
+- Enforce mechanically valid design logic
+
+### 4. Engineering Analysis & Simulation
+- Integrate FEM-based structural analysis
+- Support strength, fatigue, and deformation evaluation
+- Enable motion and kinematic simulation for assemblies
+
+### 5. Iterative Human–AI Design Workflow
+- Support bidirectional interaction:
+  - text → model
+  - image → model
+  - model → refinement suggestions
+- Allow engineers to guide, validate, and override AI decisions
+
+---
+
+## Development Approach
+
+The platform is designed to be developed **incrementally and modularly**, leveraging:
+- Established AI models (LLMs, VLMs)
+- Parametric CAD representations
+- Cloud-based experimentation and deployment
+- Open-source collaboration workflows
+
+This approach reflects common and proven practices in modern AI and software development, allowing meaningful progress without reliance on full-time institutional or employer-based resources.
+
+---
+
+## Disclaimer
+
+This project is a **research and engineering initiative**.  
+All outputs are intended for educational, experimental, and prototyping purposes.  
+Engineering validation and professional judgment remain essential for real-world deployment.
+
+---
 
 ## Contributing
 
-We welcome contributions to Text23D! Please read our CONTRIBUTING.md for guidelines on how to contribute.
+Contributions, discussions, and feedback are welcome.
 
-## License
-
-This project is licensed under the MIT License. See the LICENSE file for details.
-
-## Contact
-
-For any questions or suggestions, please open an issue or contact us at [qzhang392@gmail.com](mailto:qzhang392@gmail.com).
+More detailed contribution guidelines will be provided as the project evolves.
