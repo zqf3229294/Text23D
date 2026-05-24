@@ -1,0 +1,89 @@
+:host {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+}
+
+.viewer {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0)),
+    #11151d;
+}
+
+.canvas-host {
+  position: absolute;
+  inset: 0;
+}
+
+.canvas-host canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.toolbar {
+  position: absolute;
+  z-index: 2;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(21, 25, 34, 0.88);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+}
+
+button,
+a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 62px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  background: #10141b;
+  font-weight: 800;
+  font-size: 12px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+button:hover,
+a:hover {
+  border-color: var(--accent);
+}
+
+.overlay {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  top: 50%;
+  width: min(360px, calc(100% - 48px));
+  transform: translate(-50%, -50%);
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(21, 25, 34, 0.92);
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.45;
+  box-shadow: var(--shadow);
+}
+
+@media (max-width: 640px) {
+  .toolbar {
+    top: 10px;
+    right: 10px;
+  }
+}

@@ -1,0 +1,16 @@
+<section class="viewer">
+  <div class="toolbar">
+    <button type="button" (click)="resetView()">Reset</button>
+    <a
+      *ngIf="generation?.artifacts?.step"
+      [href]="stepUrl()"
+      download
+    >STEP</a>
+  </div>
+
+  <div #canvasHost class="canvas-host"></div>
+
+  <div class="overlay" *ngIf="overlayMessage">
+    {{ overlayMessage }}
+  </div>
+</section>

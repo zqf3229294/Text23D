@@ -1,0 +1,11 @@
+<main class="workbench">
+  <app-chat-panel
+    [messages]="messages"
+    [generation]="activeGeneration"
+    [isSending]="isSending"
+    [loadError]="loadError"
+    (send)="sendMessage($event)"
+  ></app-chat-panel>
+
+  <app-model-viewer [generation]="activeGeneration"></app-model-viewer>
+</main>

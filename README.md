@@ -1,81 +1,119 @@
 # Text23D Mechanical
 
-## Overview
+Text23D Mechanical is an AI-assisted mechanical design platform for generating and refining 3D parametric CAD models from conversational input.
 
-Text23D Mechanical is an AI-Assisted Mechanical Design Platform, this project aims to develop an **open-source, cloud-based AI-assisted mechanical design platform** that enables users to generate, edit, and analyze **engineering-grade 2D production drawings and 3D parametric mechanical models** directly from **natural-language and image input**.
+This repository currently contains the first local MVP scaffold:
 
-The platform is designed to bridge the gap between recent advances in artificial intelligence and **practical, manufacturable mechanical engineering design**, with a focus on accuracy, constraints, and real-world engineering logic rather than purely visual geometry.
+- Angular frontend with a left-side chat panel and right-side Three.js CAD preview.
+- Python/FastAPI backend for conversations, generation jobs, artifacts, and provider adapters.
+- Docker-isolated CadQuery runner that exports `STEP` for CAD download and `GLB` for browser preview.
+- SQLite plus filesystem storage for local single-user development.
 
----
+The default LLM provider is `mock`, so the stack can be tested before connecting OpenAI or Anthropic credentials.
 
-## Project Vision
+## Repository Layout
 
-The long-term vision of this project is to create an **AI-driven engineering assistant** that can:
+```text
+backend/      FastAPI API, SQLite persistence, provider adapters, tests
+cad-runner/   Docker image that executes generated CadQuery scripts
+frontend/     Angular standalone app with Three.js preview
+docs/         Architecture and API notes
+data/         Local runtime files, ignored by Git
+```
 
-- Understand **design intent** expressed in natural language
-- Interpret **reference images and sketches**
-- Generate **parametric, constraint-aware CAD models**
-- Automatically produce **engineering drawings**
-- Perform **engineering analysis and validation**
-- Support iterative refinement through human–AI collaboration
+## Prerequisites
 
-The platform is intended to support engineers, educators, students, researchers, and small manufacturers who require **functional, production-ready designs**, not just visual representations.
+- Python 3.11+
+- Node.js LTS and npm
+- Docker Desktop
 
----
+On this machine, Node/npm and Docker were not available on PATH during scaffolding, and `python` resolved to the Windows app alias instead of a working interpreter. Install or fix those tools before running the full app locally.
 
-## Core Capabilities (Planned)
+## Quick Start
 
-### 1. Natural-Language & Image-Based Design Input
-- Accept high-level design descriptions in text
-- Incorporate reference images or sketches
-- Translate intent into structured mechanical parameters
+Create a local environment file:
 
-### 2. Parametric 3D Mechanical Modeling
-- Generate editable, constraint-based CAD models
-- Preserve design intent through parametric relationships
-- Enable downstream modification and reuse
+```powershell
+Copy-Item .env.example .env
+```
 
-### 3. Engineering Constraints & Manufacturability
-- Embed material properties, loads, and boundary conditions
-- Apply tolerance and manufacturability rules
-- Enforce mechanically valid design logic
+Build the CadQuery runner image:
 
-### 4. Engineering Analysis & Simulation
-- Integrate FEM-based structural analysis
-- Support strength, fatigue, and deformation evaluation
-- Enable motion and kinematic simulation for assemblies
+```powershell
+docker build -t text23d-cad-runner:local cad-runner
+```
 
-### 5. Iterative Human–AI Design Workflow
-- Support bidirectional interaction:
-  - text → model
-  - image → model
-  - model → refinement suggestions
-- Allow engineers to guide, validate, and override AI decisions
+Start the backend:
 
----
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e ".[dev]"
+uvicorn app.main:app --reload --port 8000
+```
 
-## Development Approach
+Start the frontend in another shell:
 
-The platform is designed to be developed **incrementally and modularly**, leveraging:
-- Established AI models (LLMs, VLMs)
-- Parametric CAD representations
-- Cloud-based experimentation and deployment
-- Open-source collaboration workflows
+```powershell
+cd frontend
+npm install
+npm start
+```
 
-This approach reflects common and proven practices in modern AI and software development, allowing meaningful progress without reliance on full-time institutional or employer-based resources.
+Open `http://localhost:4200`.
 
----
+## LLM Providers
 
-## Disclaimer
+Use `.env` to choose a provider:
 
-This project is a **research and engineering initiative**.  
-All outputs are intended for educational, experimental, and prototyping purposes.  
-Engineering validation and professional judgment remain essential for real-world deployment.
+```text
+TEXT23D_LLM_PROVIDER=mock
+```
 
----
+Supported values:
 
-## Contributing
+- `mock`: deterministic development provider.
+- `openai`: OpenAI SDK provider using structured JSON output.
+- `anthropic`: Anthropic SDK provider that parses the required JSON response.
 
-Contributions, discussions, and feedback are welcome.
+For real providers, add the corresponding API key and model value in `.env`.
 
-More detailed contribution guidelines will be provided as the project evolves.
+## API
+
+Core endpoints:
+
+- `POST /api/conversations`
+- `GET /api/conversations/{conversation_id}`
+- `POST /api/conversations/{conversation_id}/messages`
+- `GET /api/generations/{generation_id}`
+- `GET /api/generations/{generation_id}/artifacts/{kind}`
+
+See [docs/API.md](docs/API.md) for examples.
+
+## Testing
+
+Backend tests:
+
+```powershell
+cd backend
+pytest
+```
+
+Runner tests:
+
+```powershell
+cd cad-runner
+pytest
+```
+
+Frontend tests:
+
+```powershell
+cd frontend
+npm test
+```
+
+## Scope
+
+This is a local single-user prototype. It does not include authentication, multi-user isolation, image input, engineering simulation, production deployment, or a hardened multi-tenant sandbox.
