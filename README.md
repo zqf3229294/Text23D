@@ -89,8 +89,21 @@ Supported values:
 - `mock`: deterministic development provider.
 - `openai`: OpenAI SDK provider using structured JSON output.
 - `anthropic`: Anthropic SDK provider that parses the required JSON response.
+- `deepseek`: DeepSeek API through its OpenAI-compatible Chat Completions endpoint.
+- `openai_compatible`: generic OpenAI-compatible Chat Completions provider.
 
 For real providers, add the corresponding API key and model value in `.env`.
+
+DeepSeek V4 example:
+
+```text
+TEXT23D_LLM_PROVIDER=deepseek
+TEXT23D_DEEPSEEK_API_KEY=your_deepseek_key
+TEXT23D_DEEPSEEK_BASE_URL=https://api.deepseek.com
+TEXT23D_DEEPSEEK_MODEL=deepseek-v4-flash
+```
+
+Use `deepseek-v4-pro` for higher-quality CAD script generation if the extra cost is acceptable.
 
 ## API
 

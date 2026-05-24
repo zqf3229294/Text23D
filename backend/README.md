@@ -40,11 +40,32 @@ TEXT23D_CAD_RUNNER_PYTHON=C:\Development\Text23D\.venv-cadquery\Scripts\python.e
 
 Copy the root `.env.example` to `.env` and adjust:
 
-- `TEXT23D_LLM_PROVIDER=mock|openai|anthropic`
+- `TEXT23D_LLM_PROVIDER=mock|openai|anthropic|deepseek|openai_compatible`
 - `TEXT23D_OPENAI_API_KEY=...`
 - `TEXT23D_ANTHROPIC_API_KEY=...`
+- `TEXT23D_DEEPSEEK_API_KEY=...`
 - `TEXT23D_CAD_RUNNER_PYTHON=...` if CadQuery lives in a separate Python environment
 - `TEXT23D_CAD_RUNNER_SCRIPT=...` if the runner script is moved
+
+DeepSeek V4 example:
+
+```text
+TEXT23D_LLM_PROVIDER=deepseek
+TEXT23D_DEEPSEEK_API_KEY=your_deepseek_key
+TEXT23D_DEEPSEEK_BASE_URL=https://api.deepseek.com
+TEXT23D_DEEPSEEK_MODEL=deepseek-v4-flash
+```
+
+Use `deepseek-v4-pro` instead of `deepseek-v4-flash` if you want the more capable V4 model.
+
+For another OpenAI-compatible API:
+
+```text
+TEXT23D_LLM_PROVIDER=openai_compatible
+TEXT23D_OPENAI_COMPATIBLE_API_KEY=your_key
+TEXT23D_OPENAI_COMPATIBLE_BASE_URL=https://provider.example.com
+TEXT23D_OPENAI_COMPATIBLE_MODEL=model-id
+```
 
 ## Tests
 
