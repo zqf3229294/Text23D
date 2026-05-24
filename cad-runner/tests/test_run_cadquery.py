@@ -36,7 +36,7 @@ def test_missing_build_model_fails(tmp_path):
 
 @pytest.mark.skipif(
     importlib.util.find_spec("cadquery") is None,
-    reason="CadQuery is only required inside the runner image.",
+    reason="CadQuery is only available after installing local CAD dependencies.",
 )
 def test_cube_with_hole_exports_step_and_glb(tmp_path):
     script = Path(__file__).resolve().parents[1] / "examples" / "cube_with_hole.py"

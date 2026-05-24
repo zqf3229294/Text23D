@@ -1,7 +1,0 @@
-services:
-  cad-runner:
-    image: text23d-cad-runner:local
-    build:
-      context: ./cad-runner
-    command: ["python", "/opt/text23d/run_cadquery.py", "--help"]
-    profiles: ["tools"]

@@ -1,23 +1,22 @@
-# Text23D CadQuery Runner
+# Text23D Local CadQuery Runner
 
-This image executes a generated CadQuery script and exports:
+This script executes a generated CadQuery script directly on the local machine and exports:
 
-- `/work/output/model.step`
-- `/work/output/preview.glb`
-- `/work/output/run.log` written by the backend process outside the container
+- `model.step`
+- `preview.glb`
 
-Build from the repository root:
+The input script must define `build_model()` and return a CadQuery `Workplane`, shape, or `Assembly`.
+
+Run a local smoke test from the repository root after installing CadQuery. Python 3.11 or 3.12 is recommended because CadQuery depends on native CAD wheels.
 
 ```powershell
-docker build -t text23d-cad-runner:local cad-runner
+.\.venv-cadquery\Scripts\python.exe cad-runner\run_cadquery.py `
+  cad-runner\examples\cube_with_hole.py `
+  data\smoke-output
 ```
 
-Smoke test:
+The backend calls this script in a subprocess. By default it uses the backend Python executable. To use a separate CadQuery environment, set:
 
-```powershell
-docker run --rm --network none `
-  -v ${PWD}\cad-runner\examples\cube_with_hole.py:/work/model.py:ro `
-  -v ${PWD}\data\smoke-output:/work/output `
-  text23d-cad-runner:local `
-  python /opt/text23d/run_cadquery.py /work/model.py /work/output
+```text
+TEXT23D_CAD_RUNNER_PYTHON=C:\Path\To\python.exe
 ```

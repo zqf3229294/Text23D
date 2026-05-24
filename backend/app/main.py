@@ -5,7 +5,7 @@ from .api import router
 from .config import Settings, get_settings
 from .db import SQLiteRepository
 from .providers import create_provider
-from .runner import DockerCadRunner
+from .runner import create_runner
 from .service import GenerationService
 
 
@@ -17,7 +17,7 @@ def create_app(
     settings = settings or get_settings()
     repository = SQLiteRepository(settings.database_path)
     llm_provider = provider or create_provider(settings)
-    cad_runner = runner or DockerCadRunner(settings)
+    cad_runner = runner or create_runner(settings)
     generation_service = GenerationService(
         settings=settings,
         repository=repository,

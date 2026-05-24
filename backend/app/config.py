@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -26,15 +26,21 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-sonnet-4-5"
 
-    cad_runner_image: str = "text23d-cad-runner:local"
     cad_runner_timeout_seconds: int = Field(default=90, ge=5, le=600)
-    cad_runner_memory: str = "1g"
-    cad_runner_cpus: str = "1.0"
+    cad_runner_python: str | None = None
+    cad_runner_script: Path | None = None
 
     cors_origins: list[str] = [
         "http://localhost:4200",
         "http://127.0.0.1:4200",
     ]
+
+    @field_validator("cad_runner_python", "cad_runner_script", mode="before")
+    @classmethod
+    def empty_string_to_none(cls, value):
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
 
 @lru_cache

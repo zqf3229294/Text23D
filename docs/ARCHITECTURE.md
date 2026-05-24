@@ -8,7 +8,7 @@
 4. The generation service sends conversation context to the configured provider adapter.
 5. The provider returns JSON with `assistant_summary` and CadQuery code defining `build_model()`.
 6. The backend validates the code with AST checks and writes it into a per-generation artifact folder.
-7. The Docker runner executes the script with no network and exports `model.step` and `preview.glb`.
+7. The local CadQuery runner executes the script in a Python subprocess and exports `model.step` and `preview.glb`.
 8. Angular polls `GET /api/generations/{id}` and loads the GLB through Three.js when ready.
 
 ## Storage
@@ -32,12 +32,9 @@ All providers implement the same internal contract: conversation messages in, `a
 
 ## Safety boundary
 
-The backend performs AST validation before execution and blocks unsafe imports/calls, but the main isolation boundary is the Docker runner:
+The backend performs AST validation before execution and blocks unsafe imports/calls. Generated CadQuery code now runs directly on the local machine in a subprocess, so this is not a security sandbox.
 
-- `--network none`
-- configurable CPU limit
-- configurable memory limit
 - subprocess timeout from the backend
 - per-generation output directory
 
-This is suitable for a local MVP, not for untrusted multi-tenant production traffic.
+This is suitable for a local single-user MVP. Do not expose this mode to untrusted users or multi-tenant production traffic.

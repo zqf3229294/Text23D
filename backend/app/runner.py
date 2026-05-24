@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -24,7 +25,7 @@ class CadRunner(Protocol):
         ...
 
 
-class DockerCadRunner:
+class LocalCadRunner:
     def __init__(self, settings: Settings):
         self.settings = settings
 
@@ -35,24 +36,10 @@ class DockerCadRunner:
         glb_path = output_dir / "preview.glb"
 
         command = [
-            "docker",
-            "run",
-            "--rm",
-            "--network",
-            "none",
-            "--cpus",
-            self.settings.cad_runner_cpus,
-            "--memory",
-            self.settings.cad_runner_memory,
-            "-v",
-            f"{script_path.resolve()}:/work/model.py:ro",
-            "-v",
-            f"{output_dir.resolve()}:/work/output",
-            self.settings.cad_runner_image,
-            "python",
-            "/opt/text23d/run_cadquery.py",
-            "/work/model.py",
-            "/work/output",
+            self.settings.cad_runner_python or sys.executable,
+            str(self._runner_script()),
+            str(script_path.resolve()),
+            str(output_dir.resolve()),
         ]
 
         try:
@@ -98,8 +85,8 @@ class DockerCadRunner:
             )
         except FileNotFoundError as exc:
             log_path.write_text(
-                "Docker executable was not found on PATH.\n"
-                "Install Docker Desktop and build the cad-runner image.\n",
+                "Local CadQuery runner could not be started.\n"
+                "Check TEXT23D_CAD_RUNNER_PYTHON and TEXT23D_CAD_RUNNER_SCRIPT.\n",
                 encoding="utf-8",
             )
             return RunnerResult(
@@ -110,9 +97,24 @@ class DockerCadRunner:
                 error=str(exc),
             )
 
+    def _runner_script(self) -> Path:
+        if self.settings.cad_runner_script:
+            return self.settings.cad_runner_script
+        repo_root = Path(__file__).resolve().parents[2]
+        return repo_root / "cad-runner" / "run_cadquery.py"
+
+
+def create_runner(settings: Settings) -> CadRunner:
+    return LocalCadRunner(settings)
+
 
 def _format_log(command: list[str], stdout: str, stderr: str) -> str:
-    redacted = ["<script-or-output-path>" if "/work/" in part else part for part in command]
+    redacted = [
+        "<script-or-output-path>"
+        if part.endswith(("model.py", "run_cadquery.py")) or "generations" in part
+        else part
+        for part in command
+    ]
     return (
         "Command:\n"
         + " ".join(redacted)
