@@ -1,10 +1,12 @@
 export type MessageRole = 'user' | 'assistant';
 export type GenerationStatus = 'queued' | 'running' | 'succeeded' | 'failed';
-export type ArtifactKind = 'step' | 'glb' | 'script' | 'log';
+export type ArtifactKind = 'step' | 'glb' | 'stl' | 'native' | 'script' | 'log';
 
 export interface ArtifactAvailability {
   step: boolean;
   glb: boolean;
+  stl: boolean;
+  native: boolean;
   script: boolean;
   log: boolean;
 }

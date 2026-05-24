@@ -1,7 +1,7 @@
 from .base import CADGenerationResponse
 from .json_utils import parse_json_response
 from ..config import Settings
-from ..prompts import SYSTEM_PROMPT, build_repair_prompt
+from ..prompts import build_repair_prompt, build_system_prompt
 
 
 class AnthropicProvider:
@@ -22,11 +22,12 @@ class AnthropicProvider:
         self,
         messages: list[dict[str, str]],
         previous_error: str | None = None,
+        cad_kernel: str = "cadquery",
     ) -> CADGenerationResponse:
         response = await self.client.messages.create(
             model=self.model,
             max_tokens=5000,
-            system=SYSTEM_PROMPT,
+            system=build_system_prompt(cad_kernel),
             messages=_anthropic_messages(messages, previous_error),
         )
         text_parts = [

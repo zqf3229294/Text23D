@@ -7,6 +7,7 @@ This repository currently contains the first local MVP scaffold:
 - Angular frontend with a left-side chat panel and right-side Three.js CAD preview.
 - Python/FastAPI backend for conversations, generation jobs, artifacts, and provider adapters.
 - Local CadQuery runner that exports `STEP` for CAD download and `GLB` for browser preview.
+- Optional FreeCAD runner that exports editable `FCStd`, `STEP`, and `STL` preview files.
 - SQLite plus filesystem storage for local single-user development.
 
 The default LLM provider is `mock`, so the stack can be tested before connecting OpenAI or Anthropic credentials.
@@ -16,6 +17,7 @@ The default LLM provider is `mock`, so the stack can be tested before connecting
 ```text
 backend/      FastAPI API, SQLite persistence, provider adapters, tests
 cad-runner/   Local script that executes generated CadQuery scripts
+freecad-runner/ Local script that executes generated FreeCAD scripts
 frontend/     Angular standalone app with Three.js preview
 docs/         Architecture and API notes
 data/         Local runtime files, ignored by Git
@@ -93,6 +95,23 @@ Supported values:
 - `openai_compatible`: generic OpenAI-compatible Chat Completions provider.
 
 For real providers, add the corresponding API key and model value in `.env`.
+
+## CAD Kernels
+
+Use `TEXT23D_CAD_KERNEL` to choose the script target:
+
+```text
+TEXT23D_CAD_KERNEL=cadquery
+```
+
+or:
+
+```text
+TEXT23D_CAD_KERNEL=freecad
+TEXT23D_FREECAD_PYTHON=C:\Program Files\FreeCAD 1.0\bin\FreeCADCmd.exe
+```
+
+CadQuery produces `STEP` and `GLB`. FreeCAD produces `FCStd`, `STEP`, and `STL`; the `FCStd` artifact keeps the FreeCAD document tree for manual editing.
 
 DeepSeek V4 example:
 

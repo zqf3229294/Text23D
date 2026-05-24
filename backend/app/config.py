@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     database_path: Path = Path("data/text23d.sqlite3")
     storage_dir: Path = Path("data/artifacts")
 
+    cad_kernel: Literal["cadquery", "freecad"] = "cadquery"
+
     llm_provider: Literal[
         "mock",
         "openai",
@@ -44,6 +46,8 @@ class Settings(BaseSettings):
     cad_runner_timeout_seconds: int = Field(default=90, ge=5, le=600)
     cad_runner_python: str | None = None
     cad_runner_script: Path | None = None
+    freecad_python: str | None = None
+    freecad_runner_script: Path | None = None
 
     cors_origins: list[str] = [
         "http://localhost:4200",
@@ -53,6 +57,8 @@ class Settings(BaseSettings):
     @field_validator(
         "cad_runner_python",
         "cad_runner_script",
+        "freecad_python",
+        "freecad_runner_script",
         "deepseek_api_key",
         "openai_compatible_api_key",
         "openai_compatible_base_url",

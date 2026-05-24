@@ -52,7 +52,11 @@ class GenerationService:
             script_path = attempt_dir / "model.py"
 
             try:
-                response = await self.provider.generate_cad(context, previous_error)
+                response = await self.provider.generate_cad(
+                    context,
+                    previous_error,
+                    self.settings.cad_kernel,
+                )
             except Exception as exc:
                 await self._fail_generation(
                     generation_id,
@@ -64,7 +68,7 @@ class GenerationService:
             script_path.write_text(response.code, encoding="utf-8")
 
             try:
-                validate_cadquery_code(response.code)
+                validate_cadquery_code(response.code, self.settings.cad_kernel)
             except CodeValidationError as exc:
                 previous_error = f"Validation failed: {exc}"
                 log_path = attempt_dir / "validation.log"
@@ -78,14 +82,16 @@ class GenerationService:
                 continue
 
             result = await asyncio.to_thread(self.runner.run, script_path, attempt_dir)
-            if result.success and result.step_path and result.glb_path:
+            if result.success and result.step_path and (result.glb_path or result.stl_path):
                 self.repository.update_generation(
                     generation_id,
                     status=GenerationStatus.succeeded.value,
                     assistant_summary=response.assistant_summary,
                     script_path=str(script_path),
                     step_path=str(result.step_path),
-                    glb_path=str(result.glb_path),
+                    glb_path=str(result.glb_path) if result.glb_path else None,
+                    stl_path=str(result.stl_path) if result.stl_path else None,
+                    native_path=str(result.native_path) if result.native_path else None,
                     log_path=str(result.log_path),
                     error=None,
                     attempt_count=attempt,

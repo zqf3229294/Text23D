@@ -35,6 +35,8 @@ CREATE TABLE IF NOT EXISTS generations (
     script_path TEXT,
     step_path TEXT,
     glb_path TEXT,
+    stl_path TEXT,
+    native_path TEXT,
     log_path TEXT,
     error TEXT,
     attempt_count INTEGER NOT NULL DEFAULT 0,
@@ -79,6 +81,8 @@ class SQLiteRepository:
     def init_db(self) -> None:
         with self.connect() as conn:
             conn.executescript(SCHEMA)
+            _ensure_column(conn, "generations", "stl_path", "TEXT")
+            _ensure_column(conn, "generations", "native_path", "TEXT")
 
     def create_conversation(self, title: str | None = None) -> dict[str, Any]:
         now = utc_now()
@@ -180,6 +184,8 @@ class SQLiteRepository:
             "script_path": None,
             "step_path": None,
             "glb_path": None,
+            "stl_path": None,
+            "native_path": None,
             "log_path": None,
             "error": None,
             "attempt_count": 0,
@@ -191,12 +197,14 @@ class SQLiteRepository:
                 """
                 INSERT INTO generations (
                     id, conversation_id, status, prompt, assistant_summary,
-                    script_path, step_path, glb_path, log_path, error,
+                    script_path, step_path, glb_path, stl_path, native_path,
+                    log_path, error,
                     attempt_count, created_at, updated_at
                 )
                 VALUES (
                     :id, :conversation_id, :status, :prompt, :assistant_summary,
-                    :script_path, :step_path, :glb_path, :log_path, :error,
+                    :script_path, :step_path, :glb_path, :stl_path, :native_path,
+                    :log_path, :error,
                     :attempt_count, :created_at, :updated_at
                 )
                 """,
@@ -235,6 +243,8 @@ class SQLiteRepository:
             "script_path",
             "step_path",
             "glb_path",
+            "stl_path",
+            "native_path",
             "log_path",
             "error",
             "attempt_count",
@@ -252,3 +262,17 @@ class SQLiteRepository:
         if generation is None:
             raise KeyError(f"Generation not found: {generation_id}")
         return generation
+
+
+def _ensure_column(
+    conn: sqlite3.Connection,
+    table_name: str,
+    column_name: str,
+    column_type: str,
+) -> None:
+    columns = {
+        row["name"]
+        for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    }
+    if column_name not in columns:
+        conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")

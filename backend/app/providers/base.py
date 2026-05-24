@@ -13,5 +13,6 @@ class LLMProvider(Protocol):
         self,
         messages: list[dict[str, str]],
         previous_error: str | None = None,
+        cad_kernel: str = "cadquery",
     ) -> CADGenerationResponse:
         ...

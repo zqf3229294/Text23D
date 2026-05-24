@@ -13,6 +13,7 @@ import {
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 
 import { Generation } from '../../models';
 import { ApiService } from '../../services/api.service';
@@ -38,7 +39,7 @@ export class ModelViewerComponent implements AfterViewInit, OnChanges, OnDestroy
   private resizeObserver?: ResizeObserver;
   private modelRoot?: THREE.Object3D;
   private animationFrame = 0;
-  private loadedGenerationId = '';
+  private loadedPreviewKey = '';
 
   constructor(
     private readonly api: ApiService,
@@ -160,44 +161,93 @@ export class ModelViewerComponent implements AfterViewInit, OnChanges, OnDestroy
       return;
     }
     const generation = this.generation;
+    const preview = this.previewForGeneration(generation);
     if (
       generation.status !== 'succeeded' ||
-      !generation.artifacts.glb ||
-      generation.id === this.loadedGenerationId
+      !preview ||
+      preview.key === this.loadedPreviewKey
     ) {
       return;
     }
-    this.loadGeneration(generation);
+    this.loadGeneration(generation, preview);
   }
 
-  private loadGeneration(generation: Generation): void {
+  private loadGeneration(
+    generation: Generation,
+    preview: { kind: 'glb' | 'stl'; key: string; url: string }
+  ): void {
     this.loading = true;
     this.loadError = '';
-    const loader = new GLTFLoader();
-    const url = `${this.api.artifactUrl(generation.id, 'glb')}?v=${encodeURIComponent(generation.updated_at)}`;
 
+    if (preview.kind === 'glb') {
+      const loader = new GLTFLoader();
+      loader.load(
+        preview.url,
+        (gltf) => this.acceptLoadedObject(gltf.scene, preview.key),
+        undefined,
+        () => {
+          this.loading = false;
+          this.loadError = 'The generated GLB could not be loaded.';
+        }
+      );
+      return;
+    }
+
+    const loader = new STLLoader();
     loader.load(
-      url,
-      (gltf) => {
-        this.disposeModel();
-        this.modelRoot = gltf.scene;
-        this.modelRoot.traverse((child) => {
-          if (child instanceof THREE.Mesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-          }
+      preview.url,
+      (geometry) => {
+        geometry.computeVertexNormals();
+        const material = new THREE.MeshStandardMaterial({
+          color: 0xaab4bd,
+          roughness: 0.72,
+          metalness: 0.08
         });
-        this.scene?.add(this.modelRoot);
-        this.loadedGenerationId = generation.id;
-        this.loading = false;
-        this.frameObject(this.modelRoot);
+        const mesh = new THREE.Mesh(geometry, material);
+        this.acceptLoadedObject(mesh, preview.key);
       },
       undefined,
       () => {
         this.loading = false;
-        this.loadError = 'The generated GLB could not be loaded.';
+        this.loadError = 'The generated STL preview could not be loaded.';
       }
     );
+  }
+
+  private acceptLoadedObject(object: THREE.Object3D, previewKey: string): void {
+    this.disposeModel();
+    this.modelRoot = object;
+    this.modelRoot.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+    this.scene?.add(this.modelRoot);
+    this.loadedPreviewKey = previewKey;
+    this.loading = false;
+    this.frameObject(this.modelRoot);
+  }
+
+  private previewForGeneration(
+    generation: Generation
+  ): { kind: 'glb' | 'stl'; key: string; url: string } | null {
+    const version = encodeURIComponent(generation.updated_at);
+    if (generation.artifacts.glb) {
+      return {
+        kind: 'glb',
+        key: `${generation.id}:glb:${generation.updated_at}`,
+        url: `${this.api.artifactUrl(generation.id, 'glb')}?v=${version}`
+      };
+    }
+    if (generation.artifacts.stl) {
+      return {
+        kind: 'stl',
+        key: `${generation.id}:stl:${generation.updated_at}`,
+        url: `${this.api.artifactUrl(generation.id, 'stl')}?v=${version}`
+      };
+    }
+    return null;
   }
 
   private frameObject(object?: THREE.Object3D): void {
@@ -241,6 +291,6 @@ export class ModelViewerComponent implements AfterViewInit, OnChanges, OnDestroy
       }
     });
     this.modelRoot = undefined;
-    this.loadedGenerationId = '';
+    this.loadedPreviewKey = '';
   }
 }

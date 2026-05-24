@@ -26,6 +26,8 @@ def serialize_generation(row: dict[str, Any]) -> GenerationRead:
         artifacts=ArtifactAvailability(
             step=_exists(row.get("step_path")),
             glb=_exists(row.get("glb_path")),
+            stl=_exists(row.get("stl_path")),
+            native=_exists(row.get("native_path")),
             script=_exists(row.get("script_path")),
             log=_exists(row.get("log_path")),
         ),

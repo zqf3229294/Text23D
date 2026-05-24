@@ -37,6 +37,8 @@
     <nav class="artifact-links" aria-label="Generated artifacts">
       <a *ngIf="gen.artifacts.step" [href]="artifactUrl(gen.id, 'step')" download>STEP</a>
       <a *ngIf="gen.artifacts.glb" [href]="artifactUrl(gen.id, 'glb')" download>GLB</a>
+      <a *ngIf="gen.artifacts.stl" [href]="artifactUrl(gen.id, 'stl')" download>STL</a>
+      <a *ngIf="gen.artifacts.native" [href]="artifactUrl(gen.id, 'native')" download>FreeCAD</a>
       <a *ngIf="gen.artifacts.script" [href]="artifactUrl(gen.id, 'script')" target="_blank" rel="noreferrer">Script</a>
       <a *ngIf="gen.artifacts.log" [href]="artifactUrl(gen.id, 'log')" target="_blank" rel="noreferrer">Log</a>
     </nav>

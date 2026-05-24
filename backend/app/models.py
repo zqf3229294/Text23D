@@ -18,6 +18,8 @@ class GenerationStatus(str, Enum):
 class ArtifactAvailability(BaseModel):
     step: bool = False
     glb: bool = False
+    stl: bool = False
+    native: bool = False
     script: bool = False
     log: bool = False
 

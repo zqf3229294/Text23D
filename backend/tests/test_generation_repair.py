@@ -11,7 +11,7 @@ class RepairingProvider:
     def __init__(self):
         self.calls = 0
 
-    async def generate_cad(self, messages, previous_error=None):
+    async def generate_cad(self, messages, previous_error=None, cad_kernel="cadquery"):
         self.calls += 1
         if self.calls == 1:
             return CADGenerationResponse(

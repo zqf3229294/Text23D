@@ -1,7 +1,7 @@
 from .base import CADGenerationResponse
 from .json_utils import parse_json_response
 from ..config import Settings
-from ..prompts import SYSTEM_PROMPT, build_repair_prompt
+from ..prompts import build_repair_prompt, build_system_prompt
 
 
 class OpenAIProvider:
@@ -20,12 +20,13 @@ class OpenAIProvider:
         self,
         messages: list[dict[str, str]],
         previous_error: str | None = None,
+        cad_kernel: str = "cadquery",
     ) -> CADGenerationResponse:
         input_messages = _with_repair_message(messages, previous_error)
         try:
             response = await self.client.responses.parse(
                 model=self.model,
-                instructions=SYSTEM_PROMPT,
+                instructions=build_system_prompt(cad_kernel),
                 input=input_messages,
                 text_format=CADGenerationResponse,
             )
@@ -36,7 +37,7 @@ class OpenAIProvider:
         except AttributeError:
             response = await self.client.responses.create(
                 model=self.model,
-                instructions=SYSTEM_PROMPT,
+                instructions=build_system_prompt(cad_kernel),
                 input=input_messages,
             )
             return parse_json_response(response.output_text)

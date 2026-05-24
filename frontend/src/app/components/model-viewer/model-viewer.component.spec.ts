@@ -37,6 +37,8 @@ describe('ModelViewerComponent', () => {
       artifacts: {
         step: false,
         glb: false,
+        stl: false,
+        native: false,
         script: false,
         log: false
       },
@@ -60,6 +62,8 @@ describe('ModelViewerComponent', () => {
       artifacts: {
         step: true,
         glb: true,
+        stl: false,
+        native: false,
         script: true,
         log: true
       },

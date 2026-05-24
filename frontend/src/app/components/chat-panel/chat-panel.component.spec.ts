@@ -60,6 +60,8 @@ describe('ChatPanelComponent', () => {
       artifacts: {
         step: true,
         glb: true,
+        stl: true,
+        native: true,
         script: true,
         log: true
       },
@@ -72,6 +74,6 @@ describe('ChatPanelComponent', () => {
     const links = Array.from(
       fixture.nativeElement.querySelectorAll('.artifact-links a') as NodeListOf<Element>
     ).map((link) => link.textContent?.trim());
-    expect(links).toEqual(['STEP', 'GLB', 'Script', 'Log']);
+    expect(links).toEqual(['STEP', 'GLB', 'STL', 'FreeCAD', 'Script', 'Log']);
   });
 });

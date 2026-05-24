@@ -110,6 +110,8 @@ def get_generation_artifact(
     path_field = {
         "step": "step_path",
         "glb": "glb_path",
+        "stl": "stl_path",
+        "native": "native_path",
         "script": "script_path",
         "log": "log_path",
     }.get(kind)
@@ -135,6 +137,8 @@ def _media_type(kind: str) -> str:
     return {
         "step": "model/step",
         "glb": "model/gltf-binary",
+        "stl": "model/stl",
+        "native": "application/vnd.freecad",
         "script": "text/x-python",
         "log": "text/plain",
     }[kind]
@@ -144,6 +148,8 @@ def _artifact_filename(generation_id: str, kind: str) -> str:
     extension = {
         "step": "step",
         "glb": "glb",
+        "stl": "stl",
+        "native": "FCStd",
         "script": "py",
         "log": "log",
     }[kind]

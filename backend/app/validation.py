@@ -7,7 +7,15 @@ class CodeValidationError(ValueError):
     pass
 
 
-ALLOWED_IMPORT_ROOTS = {"cadquery", "math"}
+CADQUERY_IMPORT_ROOTS = {"cadquery", "math"}
+FREECAD_IMPORT_ROOTS = {
+    "Draft",
+    "FreeCAD",
+    "Mesh",
+    "Part",
+    "Sketcher",
+    "math",
+}
 BLOCKED_CALLS = {
     "__import__",
     "compile",
@@ -38,7 +46,7 @@ BLOCKED_NAMES = {
 }
 
 
-def validate_cadquery_code(code: str) -> None:
+def validate_cadquery_code(code: str, cad_kernel: str = "cadquery") -> None:
     try:
         tree = ast.parse(code)
     except SyntaxError as exc:
@@ -58,12 +66,12 @@ def validate_cadquery_code(code: str) -> None:
         if isinstance(node, ast.Import):
             for alias in node.names:
                 root = alias.name.split(".", 1)[0]
-                if root not in ALLOWED_IMPORT_ROOTS:
+                if root not in _allowed_import_roots(cad_kernel):
                     raise CodeValidationError(f"Import is not allowed: {alias.name}")
 
         if isinstance(node, ast.ImportFrom):
             root = (node.module or "").split(".", 1)[0]
-            if root not in ALLOWED_IMPORT_ROOTS:
+            if root not in _allowed_import_roots(cad_kernel):
                 raise CodeValidationError(f"Import is not allowed: {node.module}")
 
         if isinstance(node, ast.Name) and node.id in BLOCKED_NAMES:
@@ -87,3 +95,9 @@ def _attribute_root(node: ast.Attribute) -> str | None:
     if isinstance(current, ast.Name):
         return current.id
     return None
+
+
+def _allowed_import_roots(cad_kernel: str) -> set[str]:
+    if cad_kernel == "freecad":
+        return FREECAD_IMPORT_ROOTS
+    return CADQUERY_IMPORT_ROOTS

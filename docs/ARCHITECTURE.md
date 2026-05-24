@@ -6,10 +6,11 @@
 2. The user submits a prompt through `POST /api/conversations/{id}/messages`.
 3. FastAPI stores the user message, creates a queued generation, and starts a background generation task.
 4. The generation service sends conversation context to the configured provider adapter.
-5. The provider returns JSON with `assistant_summary` and CadQuery code defining `build_model()`.
+5. The provider returns JSON with `assistant_summary` and CAD-kernel-specific Python code defining `build_model()`.
 6. The backend validates the code with AST checks and writes it into a per-generation artifact folder.
-7. The local CadQuery runner executes the script in a Python subprocess and exports `model.step` and `preview.glb`.
-8. Angular polls `GET /api/generations/{id}` and loads the GLB through Three.js when ready.
+7. The selected local runner executes the script in a subprocess.
+8. CadQuery exports `model.step` and `preview.glb`; FreeCAD exports `model.FCStd`, `model.step`, and `preview.stl`.
+9. Angular polls `GET /api/generations/{id}` and loads GLB or STL through Three.js when ready.
 
 ## Storage
 

@@ -44,8 +44,10 @@ Copy the root `.env.example` to `.env` and adjust:
 - `TEXT23D_OPENAI_API_KEY=...`
 - `TEXT23D_ANTHROPIC_API_KEY=...`
 - `TEXT23D_DEEPSEEK_API_KEY=...`
+- `TEXT23D_CAD_KERNEL=cadquery|freecad`
 - `TEXT23D_CAD_RUNNER_PYTHON=...` if CadQuery lives in a separate Python environment
 - `TEXT23D_CAD_RUNNER_SCRIPT=...` if the runner script is moved
+- `TEXT23D_FREECAD_PYTHON=...` if using the FreeCAD runner
 
 DeepSeek V4 example:
 
@@ -66,6 +68,15 @@ TEXT23D_OPENAI_COMPATIBLE_API_KEY=your_key
 TEXT23D_OPENAI_COMPATIBLE_BASE_URL=https://provider.example.com
 TEXT23D_OPENAI_COMPATIBLE_MODEL=model-id
 ```
+
+FreeCAD generation example:
+
+```text
+TEXT23D_CAD_KERNEL=freecad
+TEXT23D_FREECAD_PYTHON=C:\Program Files\FreeCAD 1.0\bin\FreeCADCmd.exe
+```
+
+The FreeCAD path returns a native `model.FCStd` artifact for manual editing, plus STEP and STL preview artifacts.
 
 ## Tests
 
