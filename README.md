@@ -1,81 +1,166 @@
 # Text23D Mechanical
 
-## Overview
+Text23D Mechanical is an AI-assisted mechanical design platform for generating and refining 3D parametric CAD models from conversational input.
 
-Text23D Mechanical is an AI-Assisted Mechanical Design Platform, this project aims to develop an **open-source, cloud-based AI-assisted mechanical design platform** that enables users to generate, edit, and analyze **engineering-grade 2D production drawings and 3D parametric mechanical models** directly from **natural-language and image input**.
+This repository currently contains the first local MVP scaffold:
 
-The platform is designed to bridge the gap between recent advances in artificial intelligence and **practical, manufacturable mechanical engineering design**, with a focus on accuracy, constraints, and real-world engineering logic rather than purely visual geometry.
+- Angular frontend with a left-side chat panel and right-side Three.js CAD preview.
+- Python/FastAPI backend for conversations, generation jobs, artifacts, and provider adapters.
+- Local CadQuery runner that exports `STEP` for CAD download and `GLB` for browser preview.
+- Optional FreeCAD runner that exports editable `FCStd`, `STEP`, and `STL` preview files.
+- SQLite plus filesystem storage for local single-user development.
 
----
+The default LLM provider is `mock`, so the stack can be tested before connecting OpenAI or Anthropic credentials.
 
-## Project Vision
+## Repository Layout
 
-The long-term vision of this project is to create an **AI-driven engineering assistant** that can:
+```text
+backend/      FastAPI API, SQLite persistence, provider adapters, tests
+cad-runner/   Local script that executes generated CadQuery scripts
+freecad-runner/ Local script that executes generated FreeCAD scripts
+frontend/     Angular standalone app with Three.js preview
+docs/         Architecture and API notes
+data/         Local runtime files, ignored by Git
+```
 
-- Understand **design intent** expressed in natural language
-- Interpret **reference images and sketches**
-- Generate **parametric, constraint-aware CAD models**
-- Automatically produce **engineering drawings**
-- Perform **engineering analysis and validation**
-- Support iterative refinement through human–AI collaboration
+## Prerequisites
 
-The platform is intended to support engineers, educators, students, researchers, and small manufacturers who require **functional, production-ready designs**, not just visual representations.
+- Python 3.11+
+- Node.js LTS and npm
+- CadQuery installed in the backend Python environment, or in a separate Python environment referenced by `TEXT23D_CAD_RUNNER_PYTHON`
 
----
+CadQuery depends on native CAD wheels that may lag the newest Python releases. Python 3.11 or 3.12 is recommended for the local CAD runner.
 
-## Core Capabilities (Planned)
+## Quick Start
 
-### 1. Natural-Language & Image-Based Design Input
-- Accept high-level design descriptions in text
-- Incorporate reference images or sketches
-- Translate intent into structured mechanical parameters
+Create a local environment file:
 
-### 2. Parametric 3D Mechanical Modeling
-- Generate editable, constraint-based CAD models
-- Preserve design intent through parametric relationships
-- Enable downstream modification and reuse
+```powershell
+Copy-Item .env.example .env
+```
 
-### 3. Engineering Constraints & Manufacturability
-- Embed material properties, loads, and boundary conditions
-- Apply tolerance and manufacturability rules
-- Enforce mechanically valid design logic
+Start the backend:
 
-### 4. Engineering Analysis & Simulation
-- Integrate FEM-based structural analysis
-- Support strength, fatigue, and deformation evaluation
-- Enable motion and kinematic simulation for assemblies
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e ".[dev]"
+uvicorn app.main:app --reload --port 8000
+```
 
-### 5. Iterative Human–AI Design Workflow
-- Support bidirectional interaction:
-  - text → model
-  - image → model
-  - model → refinement suggestions
-- Allow engineers to guide, validate, and override AI decisions
+For real CAD export, install CadQuery into a Python 3.11 or 3.12 environment. If the backend venv uses 3.11 or 3.12, run:
 
----
+```powershell
+python -m pip install -e ".[cad]"
+```
 
-## Development Approach
+If the backend venv uses a newer Python such as 3.14, create a separate runner environment:
 
-The platform is designed to be developed **incrementally and modularly**, leveraging:
-- Established AI models (LLMs, VLMs)
-- Parametric CAD representations
-- Cloud-based experimentation and deployment
-- Open-source collaboration workflows
+```powershell
+py -3.12 -m venv ..\.venv-cadquery
+..\.venv-cadquery\Scripts\python.exe -m pip install cadquery
+```
 
-This approach reflects common and proven practices in modern AI and software development, allowing meaningful progress without reliance on full-time institutional or employer-based resources.
+Then set this in the root `.env`:
 
----
+```text
+TEXT23D_CAD_RUNNER_PYTHON=C:\Development\Text23D\.venv-cadquery\Scripts\python.exe
+```
 
-## Disclaimer
+Start the frontend in another shell:
 
-This project is a **research and engineering initiative**.  
-All outputs are intended for educational, experimental, and prototyping purposes.  
-Engineering validation and professional judgment remain essential for real-world deployment.
+```powershell
+cd frontend
+npm install
+npm start
+```
 
----
+Open `http://localhost:4200`.
 
-## Contributing
+## LLM Providers
 
-Contributions, discussions, and feedback are welcome.
+Use `.env` to choose a provider:
 
-More detailed contribution guidelines will be provided as the project evolves.
+```text
+TEXT23D_LLM_PROVIDER=mock
+```
+
+Supported values:
+
+- `mock`: deterministic development provider.
+- `openai`: OpenAI SDK provider using structured JSON output.
+- `anthropic`: Anthropic SDK provider that parses the required JSON response.
+- `deepseek`: DeepSeek API through its OpenAI-compatible Chat Completions endpoint.
+- `openai_compatible`: generic OpenAI-compatible Chat Completions provider.
+
+For real providers, add the corresponding API key and model value in `.env`.
+
+## CAD Kernels
+
+Use `TEXT23D_CAD_KERNEL` to choose the script target:
+
+```text
+TEXT23D_CAD_KERNEL=cadquery
+```
+
+or:
+
+```text
+TEXT23D_CAD_KERNEL=freecad
+TEXT23D_FREECAD_PYTHON=C:\Program Files\FreeCAD 1.0\bin\FreeCADCmd.exe
+```
+
+CadQuery produces `STEP` and `GLB`. FreeCAD produces `FCStd`, `STEP`, and `STL`; the `FCStd` artifact keeps the FreeCAD document tree for manual editing.
+
+DeepSeek V4 example:
+
+```text
+TEXT23D_LLM_PROVIDER=deepseek
+TEXT23D_DEEPSEEK_API_KEY=your_deepseek_key
+TEXT23D_DEEPSEEK_BASE_URL=https://api.deepseek.com
+TEXT23D_DEEPSEEK_MODEL=deepseek-v4-flash
+```
+
+Use `deepseek-v4-pro` for higher-quality CAD script generation if the extra cost is acceptable.
+
+## API
+
+Core endpoints:
+
+- `POST /api/conversations`
+- `GET /api/conversations/{conversation_id}`
+- `POST /api/conversations/{conversation_id}/messages`
+- `GET /api/generations/{generation_id}`
+- `GET /api/generations/{generation_id}/artifacts/{kind}`
+
+See [docs/API.md](docs/API.md) for examples.
+
+## Testing
+
+Backend tests:
+
+```powershell
+cd backend
+pytest
+```
+
+Runner tests:
+
+```powershell
+cd cad-runner
+pytest
+```
+
+Frontend tests:
+
+```powershell
+cd frontend
+npm test
+```
+
+## Scope
+
+This is a local single-user prototype. It does not include authentication, multi-user isolation, image input, engineering simulation, production deployment, or a hardened multi-tenant sandbox.
+
+Generated CadQuery code runs directly on the local machine in a subprocess. Use this only for local development with trusted prompts and provider settings.
