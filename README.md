@@ -132,10 +132,10 @@ TEXT23D_ANTHROPIC_API_KEY=your_anthropic_key
 TEXT23D_FREECAD_AGENT_BACKEND=worker
 TEXT23D_FREECAD_PYTHON=C:\Program Files\FreeCAD 1.1\bin\python.exe
 TEXT23D_FREECAD_GUI_EXECUTABLE=
-TEXT23D_FREECAD_WORKER_VIEW_BACKEND=summary
+TEXT23D_FREECAD_WORKER_VIEW_BACKEND=pyvista
 ```
 
-In agent mode the backend owns the LLM key, runs the tool loop, executes the FreeCAD tool subset, stores intermediate events, and streams status/view updates to the browser over WebSocket. The default FreeCAD agent backend uses a persistent worker per conversation for live document edits, while `get_view` returns a stable SVG object summary by default. On Windows, set `TEXT23D_FREECAD_PYTHON` to FreeCAD's bundled `python.exe`; launching the worker through `FreeCAD.exe` can open the GUI without responding to the backend worker protocol. Set `TEXT23D_FREECAD_WORKER_VIEW_BACKEND=gui` only when native FreeCAD viewport PNG screenshots are stable on your machine. Use `TEXT23D_LLM_PROVIDER=mock` for a local smoke test without an external model, or set `TEXT23D_FREECAD_AGENT_BACKEND=replay` to use the older `FreeCADCmd` replay fallback.
+In agent mode the backend owns the LLM key, runs the tool loop, executes the FreeCAD tool subset, stores intermediate events, and streams status/view updates to the browser over WebSocket. The default FreeCAD agent backend uses a persistent worker per conversation for live document edits. `TEXT23D_FREECAD_WORKER_VIEW_BACKEND=pyvista` exports a temporary FreeCAD STL preview and renders a backend PNG with PyVista, then sends that PNG back to Claude in Anthropic agent mode. Install it with `python -m pip install -e ".[render]"` from `backend`. If VTK/OpenGL cannot initialize, the backend falls back to a CPU STL renderer; if mesh rendering fails entirely, it returns a stable SVG object summary. On Windows, set `TEXT23D_FREECAD_PYTHON` to FreeCAD's bundled `python.exe`; launching the worker through `FreeCAD.exe` can open the GUI without responding to the backend worker protocol. Set `TEXT23D_FREECAD_WORKER_VIEW_BACKEND=gui` only when native FreeCAD viewport PNG screenshots are stable on your machine. Use `TEXT23D_LLM_PROVIDER=mock` for a local smoke test without an external model, or set `TEXT23D_FREECAD_AGENT_BACKEND=replay` to use the older `FreeCADCmd` replay fallback.
 
 For future Linux/headless deployment, run the worker under `xvfb-run` or a managed `Xvfb :99` with `DISPLAY=:99`; this Windows-first version does not manage Xvfb itself.
 

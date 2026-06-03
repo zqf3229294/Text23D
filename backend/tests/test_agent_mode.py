@@ -58,6 +58,18 @@ class FakeWorkerClient:
                 "asset_path": str(view_path),
                 "content": {"image_path": str(view_path), "objects": self.objects},
             }
+        if command == "export_preview_mesh":
+            mesh_path = Path(args["output_path"])
+            mesh_path.parent.mkdir(parents=True, exist_ok=True)
+            mesh_path.write_text("solid preview\nendsolid preview\n", encoding="utf-8")
+            return {
+                "ok": True,
+                "content": {
+                    "message": "mesh exported",
+                    "mesh_path": str(mesh_path),
+                    "objects": self.objects,
+                },
+            }
         if command == "export_model":
             output_dir = Path(args["output_dir"])
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -273,6 +285,59 @@ def test_worker_gui_view_backend_calls_worker_get_view(tmp_path):
     assert any(command == "get_view" for command, _args in clients[0].requests)
 
 
+def test_worker_pyvista_view_backend_exports_mesh_and_renders_png(tmp_path, monkeypatch):
+    from app import pyvista_renderer
+
+    def fake_render(mesh_path: Path, output_path: Path, **_kwargs):
+        assert mesh_path.exists()
+        output_path.write_bytes(b"\x89PNG\r\n\x1a\n")
+        return {
+            "mesh_path": str(mesh_path),
+            "image_path": str(output_path),
+            "point_count": 8,
+            "cell_count": 12,
+            "views": ["ISO", "TOP", "FRONT", "RIGHT"],
+        }
+
+    monkeypatch.setattr(pyvista_renderer, "render_stl_preview", fake_render)
+    settings = Settings(
+        database_path=tmp_path / "db.sqlite3",
+        storage_dir=tmp_path / "artifacts",
+        cad_kernel="freecad",
+        generation_mode="agent",
+        freecad_agent_backend="worker",
+        freecad_worker_view_backend="pyvista",
+        llm_provider="mock",
+    )
+    repository = SQLiteRepository(settings.database_path)
+    runner = FakeFreeCADRunner()
+    clients = []
+
+    def client_factory(log_path: Path):
+        client = FakeWorkerClient(log_path)
+        clients.append(client)
+        return client
+
+    agent = CADAgent(
+        settings,
+        repository,
+        FreeCADSessionManager(settings, runner, worker_client_factory=client_factory),
+    )
+    service = GenerationService(settings, repository, MockLLMProvider(), runner, agent)
+    conversation = repository.create_conversation()
+    repository.create_message(conversation["id"], MessageRole.user, "make a cube")
+    generation = repository.create_generation(conversation["id"], "make a cube")
+
+    asyncio.run(service.run_generation(generation["id"]))
+
+    events = repository.list_generation_events(generation["id"])
+    screenshot = next(event for event in events if event["event_type"] == "screenshot")
+    assert Path(screenshot["asset_path"]).suffix == ".png"
+    assert json.loads(screenshot["data_json"])["view_backend"] == "pyvista"
+    assert any(command == "export_preview_mesh" for command, _args in clients[0].requests)
+    assert all(command != "get_view" for command, _args in clients[0].requests)
+
+
 def test_replay_freecad_agent_backend_still_exports_artifacts(tmp_path):
     settings = Settings(
         database_path=tmp_path / "db.sqlite3",
@@ -450,3 +515,84 @@ def test_anthropic_agent_does_not_export_twice_after_tool_export(tmp_path, monke
         for command, _args in clients[0].requests
         if command == "export_model"
     ] == ["export_model"]
+
+
+def test_anthropic_agent_sends_get_view_png_as_tool_result_image(tmp_path, monkeypatch):
+    calls = {"count": 0}
+    captured_messages = []
+
+    class FakeMessages:
+        async def create(self, **kwargs):
+            calls["count"] += 1
+            captured_messages.append(kwargs["messages"])
+            if calls["count"] == 1:
+                return types.SimpleNamespace(
+                    content=[
+                        types.SimpleNamespace(
+                            type="tool_use",
+                            id="toolu_get_view",
+                            name="get_view",
+                            input={},
+                        )
+                    ]
+                )
+            return types.SimpleNamespace(
+                content=[
+                    types.SimpleNamespace(
+                        type="text",
+                        text="The screenshot looks correct.",
+                    )
+                ]
+            )
+
+    class FakeAsyncAnthropic:
+        def __init__(self, api_key: str):
+            self.messages = FakeMessages()
+
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        types.SimpleNamespace(AsyncAnthropic=FakeAsyncAnthropic),
+    )
+    settings = Settings(
+        database_path=tmp_path / "db.sqlite3",
+        storage_dir=tmp_path / "artifacts",
+        cad_kernel="freecad",
+        generation_mode="agent",
+        freecad_agent_backend="worker",
+        freecad_worker_view_backend="gui",
+        llm_provider="anthropic",
+        anthropic_api_key="test-key",
+    )
+    repository = SQLiteRepository(settings.database_path)
+    runner = FakeFreeCADRunner()
+    agent = CADAgent(
+        settings,
+        repository,
+        FreeCADSessionManager(
+            settings,
+            runner,
+            worker_client_factory=lambda log_path: FakeWorkerClient(log_path),
+        ),
+    )
+    conversation = repository.create_conversation()
+    generation = repository.create_generation(conversation["id"], "inspect the model")
+
+    result = asyncio.run(
+        agent.run(
+            generation,
+            [{"role": "user", "content": "inspect the model"}],
+            tmp_path / "generation",
+        )
+    )
+
+    assert result.success
+    assert calls["count"] == 2
+    tool_result = captured_messages[1][-1]["content"][0]
+    assert tool_result["type"] == "tool_result"
+    assert isinstance(tool_result["content"], list)
+    assert tool_result["content"][0]["type"] == "image"
+    assert tool_result["content"][0]["source"]["media_type"] == "image/png"
+    assert tool_result["content"][0]["source"]["data"]
+    assert tool_result["content"][1]["type"] == "text"
+    assert "FreeCAD tool result metadata" in tool_result["content"][1]["text"]

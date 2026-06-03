@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     freecad_runner_script: Path | None = None
     freecad_gui_executable: str | None = None
     freecad_worker_script: Path | None = None
-    freecad_worker_view_backend: Literal["summary", "gui"] = "summary"
+    freecad_worker_view_backend: Literal["summary", "gui", "pyvista"] = "summary"
     freecad_worker_timeout_seconds: int = Field(default=60, ge=5, le=600)
     freecad_session_idle_timeout_seconds: int = Field(default=900, ge=60, le=7200)
     agent_max_tool_calls: int = Field(default=30, ge=1, le=100)

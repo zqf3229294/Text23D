@@ -98,6 +98,26 @@ class FreeCADWorker:
             "objects": self.objects(),
         }
 
+    def export_preview_mesh(self, output_path: str) -> dict[str, Any]:
+        import Mesh
+
+        if self.doc is None:
+            raise RuntimeError("No FreeCAD document is active.")
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.doc.recompute()
+        objects = self._exportable_objects()
+        if not objects:
+            raise RuntimeError("No exportable FreeCAD objects were produced.")
+        Mesh.export(objects, str(path))
+        if not path.exists() or path.stat().st_size == 0:
+            raise RuntimeError("FreeCAD preview mesh was not written.")
+        return {
+            "message": "Exported temporary FreeCAD preview mesh.",
+            "mesh_path": str(path),
+            "objects": self.objects(),
+        }
+
     def export_model(self, output_dir: str) -> dict[str, Any]:
         import Mesh
         import Part
@@ -107,11 +127,7 @@ class FreeCADWorker:
         output = Path(output_dir)
         output.mkdir(parents=True, exist_ok=True)
         self.doc.recompute()
-        objects = [
-            obj
-            for obj in self.doc.Objects
-            if hasattr(obj, "Shape") and not getattr(obj.Shape, "isNull", lambda: True)()
-        ]
+        objects = self._exportable_objects()
         if not objects:
             raise RuntimeError("No exportable FreeCAD objects were produced.")
 
@@ -143,6 +159,15 @@ class FreeCADWorker:
             },
             "script_path": str(script_path),
         }
+
+    def _exportable_objects(self) -> list[Any]:
+        if self.doc is None:
+            return []
+        return [
+            obj
+            for obj in self.doc.Objects
+            if hasattr(obj, "Shape") and not getattr(obj.Shape, "isNull", lambda: True)()
+        ]
 
     def _activate_view(self) -> None:
         if self.Gui is None or self.doc is None:
@@ -223,6 +248,8 @@ def handle_request(worker: FreeCADWorker, request: dict[str, Any]) -> dict[str, 
     elif command == "get_view":
         asset_path = str(args["output_path"])
         content = worker.get_view(asset_path)
+    elif command == "export_preview_mesh":
+        content = worker.export_preview_mesh(str(args["output_path"]))
     elif command == "export_model":
         content = worker.export_model(str(args["output_dir"]))
     elif command == "shutdown":

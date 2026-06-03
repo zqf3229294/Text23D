@@ -27,8 +27,9 @@ If `FreeCADCmd.exe` is not on PATH, set `TEXT23D_FREECAD_PYTHON` to its full pat
 ## Persistent Agent Worker
 
 Agent mode can use `freecad_worker.py` to keep one live FreeCAD document open per
-conversation. This worker requires GUI-capable FreeCAD because `get_view` captures
-real viewport PNG screenshots.
+conversation. For the recommended `pyvista` view backend, this worker exports a
+temporary STL mesh and the backend renders a PNG screenshot without using
+`FreeCADGui`.
 
 Windows example:
 
@@ -45,14 +46,17 @@ TEXT23D_CAD_KERNEL=freecad
 TEXT23D_FREECAD_AGENT_BACKEND=worker
 TEXT23D_FREECAD_PYTHON=C:\Program Files\FreeCAD 1.1\bin\python.exe
 TEXT23D_FREECAD_GUI_EXECUTABLE=
-TEXT23D_FREECAD_WORKER_VIEW_BACKEND=summary
+TEXT23D_FREECAD_WORKER_VIEW_BACKEND=pyvista
 ```
 
 `TEXT23D_FREECAD_GUI_EXECUTABLE` is only a fallback when
 `TEXT23D_FREECAD_PYTHON` is not set. On Windows, launching the worker through
 `FreeCAD.exe` may show the GUI but fail to answer the JSON-lines protocol.
-`TEXT23D_FREECAD_WORKER_VIEW_BACKEND=summary` avoids native viewport capture;
-set it to `gui` only when `FreeCADGui.ActiveView.saveImage()` is stable locally.
+`TEXT23D_FREECAD_WORKER_VIEW_BACKEND=pyvista` avoids native viewport capture,
+uses the backend optional render dependency, and falls back to a CPU STL renderer
+when VTK/OpenGL is unavailable. `summary` returns a stable SVG object summary,
+and `gui` should only be used when
+`FreeCADGui.ActiveView.saveImage()` is stable locally.
 
 Linux/headless deployments should run GUI FreeCAD under a virtual display such as
 `xvfb-run` or a managed `Xvfb :99` with `DISPLAY=:99`. Text23D does not manage Xvfb

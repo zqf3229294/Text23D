@@ -21,6 +21,13 @@ If your backend Python is 3.11 or 3.12, you can install CadQuery into the same v
 python -m pip install -e ".[cad]"
 ```
 
+For PyVista-rendered FreeCAD agent screenshots, install the optional render
+dependency in the backend environment:
+
+```powershell
+python -m pip install -e ".[render]"
+```
+
 If your backend Python is newer, such as Python 3.14, create a separate Python 3.11 or 3.12 environment with CadQuery installed and point `TEXT23D_CAD_RUNNER_PYTHON` at that environment's `python.exe`.
 
 Example:
@@ -56,7 +63,7 @@ Copy the root `.env.example` to `.env` and adjust:
 - `TEXT23D_FREECAD_PYTHON=...` if using the FreeCAD runner or worker; prefer FreeCAD's bundled `python.exe` for agent mode
 - `TEXT23D_FREECAD_AGENT_BACKEND=worker|replay`
 - `TEXT23D_FREECAD_GUI_EXECUTABLE=...` optional fallback when the worker Python path is not set
-- `TEXT23D_FREECAD_WORKER_VIEW_BACKEND=summary|gui`
+- `TEXT23D_FREECAD_WORKER_VIEW_BACKEND=summary|gui|pyvista`
 
 DeepSeek V4 example:
 
@@ -100,13 +107,13 @@ TEXT23D_ANTHROPIC_API_KEY=your_anthropic_key
 TEXT23D_FREECAD_AGENT_BACKEND=worker
 TEXT23D_FREECAD_PYTHON=C:\Program Files\FreeCAD 1.1\bin\python.exe
 TEXT23D_FREECAD_GUI_EXECUTABLE=
-TEXT23D_FREECAD_WORKER_VIEW_BACKEND=summary
+TEXT23D_FREECAD_WORKER_VIEW_BACKEND=pyvista
 TEXT23D_AGENT_MAX_TOOL_CALLS=30
 TEXT23D_AGENT_MAX_RUNTIME_SECONDS=300
 TEXT23D_AGENT_MAX_CODE_CHARS=12000
 ```
 
-Agent mode V1 supports `mock` for local smoke tests and `anthropic` for Claude-style tool use. The default FreeCAD agent backend starts a persistent FreeCAD worker per conversation, so follow-up prompts can modify the same live document. `get_view` returns a stable SVG object summary by default because native FreeCAD viewport PNG capture can hang on some Windows local sessions. Set `TEXT23D_FREECAD_WORKER_VIEW_BACKEND=gui` only when that path is stable on your machine. On Windows, point `TEXT23D_FREECAD_PYTHON` to FreeCAD's bundled `python.exe`; `FreeCAD.exe` can open a GUI window without answering the backend's stdin/stdout worker protocol. Set `TEXT23D_FREECAD_AGENT_BACKEND=replay` to use the older per-tool `FreeCADCmd` replay fallback.
+Agent mode V1 supports `mock` for local smoke tests and `anthropic` for Claude-style tool use. The default FreeCAD agent backend starts a persistent FreeCAD worker per conversation, so follow-up prompts can modify the same live document. `TEXT23D_FREECAD_WORKER_VIEW_BACKEND=pyvista` asks the worker to export a temporary STL preview and lets the backend render a PNG with PyVista; Claude receives that PNG in the tool result when using Anthropic agent mode. If VTK/OpenGL cannot initialize, the backend falls back to a CPU STL renderer; if mesh rendering fails entirely, it returns a stable SVG object summary. Set `TEXT23D_FREECAD_WORKER_VIEW_BACKEND=gui` only when native FreeCAD viewport capture is stable on your machine. On Windows, point `TEXT23D_FREECAD_PYTHON` to FreeCAD's bundled `python.exe`; `FreeCAD.exe` can open a GUI window without answering the backend's stdin/stdout worker protocol. Set `TEXT23D_FREECAD_AGENT_BACKEND=replay` to use the older per-tool `FreeCADCmd` replay fallback.
 
 Linux/headless deployments should run the same worker under a virtual display such as `xvfb-run` or a managed `Xvfb :99` with `DISPLAY=:99`. Text23D does not orchestrate Xvfb in this Windows-first version.
 

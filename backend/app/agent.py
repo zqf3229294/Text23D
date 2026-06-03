@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import time
 from dataclasses import dataclass
@@ -246,7 +247,10 @@ class CADAgent:
                         "type": "tool_result",
                         "tool_use_id": block["id"],
                         "is_error": not result.ok,
-                        "content": json.dumps(result.content, default=str),
+                        "content": _anthropic_tool_result_content(
+                            str(block["name"]),
+                            result,
+                        ),
                     }
                 )
             messages.append({"role": "user", "content": tool_results})
@@ -375,7 +379,11 @@ FREECAD_TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "get_view",
-        "description": "Capture a server-side view summary for the browser event stream.",
+        "description": (
+            "Capture a server-side view of the current FreeCAD model. Depending on "
+            "backend settings this may return a rendered PNG screenshot or a stable "
+            "SVG/text summary."
+        ),
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
     {
@@ -398,7 +406,7 @@ Rules:
 - Prefer parametric FreeCAD document objects such as Part::Box, Part::Cylinder, Part::Cut, and Part::Fuse.
 - Keep each execute_code input under {max_code_chars} characters.
 - Inspect progress with get_objects and get_view when useful. get_view may return
-  a stable object summary instead of a native viewport screenshot.
+  a rendered image of the model or a stable object summary depending on backend settings.
 - Call export_model before you give the final answer.
 - If a tool returns an error, repair with a smaller snippet.
 """
@@ -505,6 +513,47 @@ def _safe_event_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
     if isinstance(code, str) and len(code) > 600:
         safe["code"] = f"{code[:600]}... ({len(code)} chars)"
     return safe
+
+
+_ANTHROPIC_TOOL_IMAGE_MEDIA_TYPES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+}
+_MAX_INLINE_TOOL_IMAGE_BYTES = 5 * 1024 * 1024
+
+
+def _anthropic_tool_result_content(
+    tool_name: str,
+    result: FreeCADToolResult,
+) -> str | list[dict[str, Any]]:
+    text = "FreeCAD tool result metadata:\n" + json.dumps(result.content, default=str)
+    if tool_name != "get_view" or not result.ok or result.asset_path is None:
+        return text
+
+    media_type = _ANTHROPIC_TOOL_IMAGE_MEDIA_TYPES.get(result.asset_path.suffix.lower())
+    if media_type is None:
+        return text
+
+    try:
+        if result.asset_path.stat().st_size > _MAX_INLINE_TOOL_IMAGE_BYTES:
+            return text
+        encoded = base64.b64encode(result.asset_path.read_bytes()).decode("ascii")
+    except OSError:
+        return text
+
+    return [
+        {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": media_type,
+                "data": encoded,
+            },
+        },
+        {"type": "text", "text": text},
+    ]
 
 
 def _tool_result_message(name: str, result: FreeCADToolResult) -> str:

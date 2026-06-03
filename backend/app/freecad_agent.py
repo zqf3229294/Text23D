@@ -7,6 +7,7 @@ import subprocess
 import textwrap
 import threading
 import time
+import traceback
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -304,6 +305,8 @@ class WorkerFreeCADSession(FreeCADSession):
             self.view_count += 1
             if self.settings.freecad_worker_view_backend == "summary":
                 return self._summary_view()
+            if self.settings.freecad_worker_view_backend == "pyvista":
+                return self._pyvista_view()
             view_path = self.session_dir / f"view_{self.view_count:02d}.png"
             response = self._request(name, {"output_path": str(view_path)})
         elif name == "export_model":
@@ -402,7 +405,66 @@ class WorkerFreeCADSession(FreeCADSession):
             )
         return None
 
-    def _summary_view(self) -> FreeCADToolResult:
+    def _pyvista_view(self) -> FreeCADToolResult:
+        mesh_path = self.session_dir / f"view_{self.view_count:02d}.stl"
+        mesh_response = self._request(
+            "export_preview_mesh",
+            {"output_path": str(mesh_path)},
+        )
+        mesh_result = self._tool_result_from_response(mesh_response)
+        if not mesh_result.ok:
+            return self._summary_view(
+                message=(
+                    "PyVista view requested, but the worker could not export a "
+                    "temporary preview mesh. Captured a stable SVG summary instead."
+                ),
+                extra_content={
+                    "requested_view_backend": "pyvista",
+                    "render_error": str(
+                        mesh_result.content.get("error") or mesh_result.content
+                    ),
+                },
+            )
+        self._accept_success("export_preview_mesh", mesh_result)
+
+        view_path = self.session_dir / f"view_{self.view_count:02d}.png"
+        try:
+            from .pyvista_renderer import render_stl_preview
+
+            render_info = render_stl_preview(mesh_path, view_path)
+        except Exception as exc:
+            self._append_log(f"PYVISTA RENDER ERROR\n{traceback.format_exc()}")
+            return self._summary_view(
+                message=(
+                    "PyVista view requested, but backend rendering failed. "
+                    "Captured a stable SVG summary instead."
+                ),
+                extra_content={
+                    "requested_view_backend": "pyvista",
+                    "render_error": str(exc),
+                },
+            )
+
+        result = FreeCADToolResult(
+            ok=True,
+            asset_path=view_path,
+            content={
+                "message": "Rendered a PyVista PNG view from the live FreeCAD model.",
+                "image_path": str(view_path),
+                "mesh_path": str(mesh_path),
+                "objects": self.last_objects,
+                "view_backend": "pyvista",
+                "render": render_info,
+            },
+        )
+        self._append_result_log(result)
+        return result
+
+    def _summary_view(
+        self,
+        message: str | None = None,
+        extra_content: dict[str, Any] | None = None,
+    ) -> FreeCADToolResult:
         view_path = self.session_dir / f"view_{self.view_count:02d}.svg"
         view_path.write_text(
             _render_view_svg(self.document_name, self.last_objects),
@@ -412,28 +474,34 @@ class WorkerFreeCADSession(FreeCADSession):
             ok=True,
             asset_path=view_path,
             content={
-                "message": (
+                "message": message
+                or (
                     "Captured a stable SVG view summary. Set "
-                    "TEXT23D_FREECAD_WORKER_VIEW_BACKEND=gui to try native "
-                    "FreeCAD viewport PNG screenshots."
+                    "TEXT23D_FREECAD_WORKER_VIEW_BACKEND=pyvista for backend "
+                    "PNG screenshots or gui to try native FreeCAD viewport capture."
                 ),
                 "image_path": str(view_path),
                 "objects": self.last_objects,
                 "view_backend": "summary",
             },
         )
+        if extra_content:
+            result.content.update(extra_content)
+        self._append_result_log(result)
+        return result
+
+    def _append_result_log(self, result: FreeCADToolResult) -> None:
         self._append_log(
             "RESULT\n"
             + json.dumps(
                 {
                     "ok": result.ok,
                     "content": result.content,
-                    "asset_path": str(result.asset_path),
+                    "asset_path": str(result.asset_path) if result.asset_path else None,
                 },
                 indent=2,
             )
         )
-        return result
 
     def _append_log(self, text: str) -> None:
         with self.tool_log_path.open("a", encoding="utf-8") as handle:
@@ -581,20 +649,71 @@ class ReplayFreeCADSession(FreeCADSession):
 
     def get_view(self) -> FreeCADToolResult:
         self.view_count += 1
-        view_path = self.session_dir / f"view_{self.view_count:02d}.svg"
-        view_path.write_text(self._render_view_svg(), encoding="utf-8")
+        if (
+            self.settings.freecad_worker_view_backend == "pyvista"
+            and self.last_result is not None
+            and self.last_result.stl_path is not None
+        ):
+            return self._pyvista_view()
+        return self._summary_view()
+
+    def _pyvista_view(self) -> FreeCADToolResult:
+        assert self.last_result is not None
+        assert self.last_result.stl_path is not None
+        view_path = self.session_dir / f"view_{self.view_count:02d}.png"
+        try:
+            from .pyvista_renderer import render_stl_preview
+
+            render_info = render_stl_preview(self.last_result.stl_path, view_path)
+        except Exception as exc:
+            self._append_log(f"PYVISTA RENDER ERROR\n{traceback.format_exc()}")
+            return self._summary_view(
+                message=(
+                    "PyVista view requested, but backend rendering failed. "
+                    "Captured a stable SVG summary instead."
+                ),
+                extra_content={
+                    "requested_view_backend": "pyvista",
+                    "render_error": str(exc),
+                },
+            )
         return FreeCADToolResult(
             ok=True,
             asset_path=view_path,
             content={
-                "message": (
+                "message": "Rendered a PyVista PNG view from the latest FreeCAD STL.",
+                "image_path": str(view_path),
+                "mesh_path": str(self.last_result.stl_path),
+                "objects": self.last_objects,
+                "view_backend": "pyvista",
+                "render": render_info,
+            },
+        )
+
+    def _summary_view(
+        self,
+        message: str | None = None,
+        extra_content: dict[str, Any] | None = None,
+    ) -> FreeCADToolResult:
+        view_path = self.session_dir / f"view_{self.view_count:02d}.svg"
+        view_path.write_text(self._render_view_svg(), encoding="utf-8")
+        result = FreeCADToolResult(
+            ok=True,
+            asset_path=view_path,
+            content={
+                "message": message
+                or (
                     "A textual SVG view summary was captured. "
                     "Use the exported STL/STEP for geometric verification."
                 ),
                 "image_path": str(view_path),
                 "objects": self.last_objects,
+                "view_backend": "summary",
             },
         )
+        if extra_content:
+            result.content.update(extra_content)
+        return result
 
     def export_model(self) -> FreeCADToolResult:
         if self.last_result is None:
