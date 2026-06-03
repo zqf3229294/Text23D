@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 import sys
 import traceback
 from pathlib import Path
@@ -28,6 +29,7 @@ def main() -> int:
         doc = App.newDocument("Text23DGeneratedModel")
         result = build_model(doc)
         doc.recompute()
+        write_object_manifest(doc, args.output_dir)
         objects = export_objects(doc, result)
         if not objects:
             raise RuntimeError("No exportable FreeCAD objects were produced.")
@@ -63,6 +65,32 @@ def export_objects(doc: Any, result: Any) -> list[Any]:
     if isinstance(result, (list, tuple)):
         return list(result)
     return [result]
+
+
+def write_object_manifest(doc: Any, output_dir: Path) -> None:
+    rows = []
+    for obj in doc.Objects:
+        row = {
+            "name": getattr(obj, "Name", ""),
+            "label": getattr(obj, "Label", ""),
+            "type": getattr(obj, "TypeId", ""),
+        }
+        shape = getattr(obj, "Shape", None)
+        bound_box = getattr(shape, "BoundBox", None)
+        if bound_box is not None:
+            row["bounds"] = {
+                "x_min": getattr(bound_box, "XMin", None),
+                "x_max": getattr(bound_box, "XMax", None),
+                "y_min": getattr(bound_box, "YMin", None),
+                "y_max": getattr(bound_box, "YMax", None),
+                "z_min": getattr(bound_box, "ZMin", None),
+                "z_max": getattr(bound_box, "ZMax", None),
+            }
+        rows.append(row)
+    (output_dir / "objects.json").write_text(
+        json.dumps(rows, indent=2),
+        encoding="utf-8",
+    )
 
 
 def export_model(doc: Any, objects: list[Any], output_dir: Path) -> None:

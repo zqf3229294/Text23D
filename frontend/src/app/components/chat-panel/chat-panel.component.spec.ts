@@ -16,6 +16,10 @@ describe('ChatPanelComponent', () => {
           provide: ApiService,
           useValue: {
             artifactUrl: (id: string, kind: string) => `/artifacts/${id}/${kind}`,
+            imageAttachmentUrl: (conversationId: string, attachmentId: string) =>
+              `/images/${conversationId}/${attachmentId}`,
+            generationEventAssetUrl: (generationId: string, eventId: string) =>
+              `data:image/svg+xml,%3Csvg%20data-id='${generationId}-${eventId}'/%3E`,
             createConversation: () => of()
           }
         }
@@ -34,7 +38,7 @@ describe('ChatPanelComponent', () => {
 
     component.submit();
 
-    expect(spy).toHaveBeenCalledOnceWith('make a cube');
+    expect(spy).toHaveBeenCalledOnceWith({ content: 'make a cube', images: [] });
     expect(component.draft).toBe('');
   });
 
@@ -75,5 +79,44 @@ describe('ChatPanelComponent', () => {
       fixture.nativeElement.querySelectorAll('.artifact-links a') as NodeListOf<Element>
     ).map((link) => link.textContent?.trim());
     expect(links).toEqual(['STEP', 'GLB', 'STL', 'FreeCAD', 'Script', 'Log']);
+  });
+
+  it('renders streamed screenshot events', () => {
+    component.generation = {
+      id: 'gen_1',
+      conversation_id: 'conv_1',
+      status: 'running',
+      prompt: 'make a flange',
+      assistant_summary: null,
+      error: null,
+      attempt_count: 1,
+      artifacts: {
+        step: false,
+        glb: false,
+        stl: false,
+        native: false,
+        script: false,
+        log: false
+      },
+      created_at: 'now',
+      updated_at: 'now'
+    };
+    component.events = [
+      {
+        id: 'evt_1',
+        generation_id: 'gen_1',
+        event_type: 'screenshot',
+        message: 'Captured FreeCAD view update.',
+        tool_name: 'get_view',
+        data: {},
+        has_asset: true,
+        created_at: new Date().toISOString()
+      }
+    ];
+
+    fixture.detectChanges();
+
+    const image = fixture.nativeElement.querySelector('.event img') as HTMLImageElement;
+    expect(image.getAttribute('src')).toContain('gen_1-evt_1');
   });
 });

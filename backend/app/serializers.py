@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Any
 
@@ -5,7 +6,9 @@ from .models import (
     ArtifactAvailability,
     ConversationDetail,
     ConversationRead,
+    GenerationEventRead,
     GenerationRead,
+    ImageAttachmentRead,
     MessageRead,
 )
 
@@ -36,8 +39,44 @@ def serialize_generation(row: dict[str, Any]) -> GenerationRead:
     )
 
 
-def serialize_message(row: dict[str, Any]) -> MessageRead:
-    return MessageRead(**row)
+def serialize_generation_event(row: dict[str, Any]) -> GenerationEventRead:
+    data = row.get("data_json") or "{}"
+    return GenerationEventRead(
+        id=row["id"],
+        generation_id=row["generation_id"],
+        event_type=row["event_type"],
+        message=row["message"],
+        tool_name=row.get("tool_name"),
+        data=data if isinstance(data, dict) else json.loads(data),
+        has_asset=_exists(row.get("asset_path")),
+        created_at=row["created_at"],
+    )
+
+
+def serialize_image_attachment(row: dict[str, Any]) -> ImageAttachmentRead:
+    return ImageAttachmentRead(
+        id=row["id"],
+        conversation_id=row["conversation_id"],
+        message_id=row.get("message_id"),
+        filename=row["filename"],
+        content_type=row["content_type"],
+        size_bytes=row["size_bytes"],
+        created_at=row["created_at"],
+    )
+
+
+def serialize_message(
+    row: dict[str, Any],
+    attachments: list[dict[str, Any]] | None = None,
+) -> MessageRead:
+    payload = {key: value for key, value in row.items() if key != "attachments"}
+    return MessageRead(
+        **payload,
+        attachments=[
+            serialize_image_attachment(attachment)
+            for attachment in attachments or []
+        ],
+    )
 
 
 def serialize_conversation(row: dict[str, Any]) -> ConversationRead:
@@ -50,8 +89,22 @@ def serialize_conversation_detail(
     generations: list[dict[str, Any]],
 ) -> ConversationDetail:
     base = serialize_conversation(conversation)
+    attachments_by_message = _attachments_by_message(messages)
     return ConversationDetail(
         **base.model_dump(),
-        messages=[serialize_message(message) for message in messages],
+        messages=[
+            serialize_message(message, attachments_by_message.get(message["id"], []))
+            for message in messages
+        ],
         generations=[serialize_generation(generation) for generation in generations],
     )
+
+
+def _attachments_by_message(
+    messages: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    result: dict[str, list[dict[str, Any]]] = {}
+    for message in messages:
+        for attachment in message.get("attachments") or []:
+            result.setdefault(message["id"], []).append(attachment)
+    return result

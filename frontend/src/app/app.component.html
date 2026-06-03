@@ -2,6 +2,11 @@
   <app-chat-panel
     [messages]="messages"
     [generation]="activeGeneration"
+    [events]="generationEvents"
+    [imageInputEnabled]="imageInputEnabled"
+    [imageMaxUploadBytes]="imageMaxUploadBytes"
+    [imageMaxCount]="imageMaxCountPerMessage"
+    [imageAllowedTypes]="imageAllowedContentTypes"
     [isSending]="isSending"
     [loadError]="loadError"
     (send)="sendMessage($event)"

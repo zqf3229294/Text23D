@@ -1,4 +1,4 @@
-from typing import Protocol
+from typing import Any, Protocol
 
 from pydantic import BaseModel, Field
 
@@ -11,7 +11,7 @@ class CADGenerationResponse(BaseModel):
 class LLMProvider(Protocol):
     async def generate_cad(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         previous_error: str | None = None,
         cad_kernel: str = "cadquery",
     ) -> CADGenerationResponse:
