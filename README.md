@@ -199,6 +199,15 @@ cd frontend
 npm test
 ```
 
+## License
+
+Text23D Mechanical is released under the MIT License. See [LICENSE](LICENSE)
+for details.
+
+If you copied or adapted source from MIT-licensed upstream projects, keep the
+upstream copyright and license notices with those portions of the code. See
+[NOTICE](NOTICE) for the project attribution note.
+
 ## Scope
 
 This is a local single-user prototype. It does not include authentication, multi-user isolation, image input, engineering simulation, production deployment, or a hardened multi-tenant sandbox.

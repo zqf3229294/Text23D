@@ -2,6 +2,7 @@
 name = "text23d-backend"
 version = "0.1.0"
 description = "FastAPI backend for the Text23D Mechanical MVP."
+license = { text = "MIT" }
 requires-python = ">=3.11"
 dependencies = [
   "anthropic>=0.39.0",

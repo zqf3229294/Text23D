@@ -1,5 +1,8 @@
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from .agent import CADAgent
 from .api import router
@@ -9,6 +12,16 @@ from .freecad_agent import FreeCADSessionManager
 from .providers import create_provider
 from .runner import create_runner
 from .service import GenerationService
+
+
+def _frontend_dist_dir() -> Path:
+    return (
+        Path(__file__).resolve().parents[2]
+        / "frontend"
+        / "dist"
+        / "text23d-frontend"
+        / "browser"
+    )
 
 
 def create_app(
@@ -48,6 +61,15 @@ def create_app(
         return {"status": "ok"}
 
     app.include_router(router)
+
+    frontend_dist = _frontend_dist_dir()
+    if frontend_dist.exists():
+        app.mount(
+            "/",
+            StaticFiles(directory=frontend_dist, html=True),
+            name="frontend",
+        )
+
     return app
 
 
