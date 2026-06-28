@@ -13,6 +13,11 @@ This repository currently contains the first local MVP scaffold:
 
 The default LLM provider is `mock`, so the stack can be tested before connecting OpenAI or Anthropic credentials.
 
+## Live Demo
+
+A public demo is hosted at [https://www.littletreenuts.com](https://www.littletreenuts.com).
+Use it to try the browser-based 3D CAD generation workflow without setting up the project locally.
+
 ## Repository Layout
 
 ```text
