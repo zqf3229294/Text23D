@@ -1,0 +1,14 @@
+Text23D Mechanical
+Copyright (c) 2026 Quanfei Zhang
+
+This project is licensed under the MIT License. See LICENSE for the full
+license text.
+
+If source files in this repository contain code copied or adapted from
+third-party MIT-licensed projects, keep the original copyright notice and
+permission notice with that code. The MIT License requires those notices to be
+included in all copies or substantial portions of the software.
+
+Third-party package dependencies retain their own licenses. For the frontend
+bundle, Angular's build output includes dependency notices in the generated
+3rdpartylicenses.txt file.

@@ -1,5 +1,6 @@
 from .base import CADGenerationResponse
 from .json_utils import parse_json_response
+from .multimodal import openai_response_content
 from ..config import Settings
 from ..prompts import build_repair_prompt, build_system_prompt
 
@@ -18,7 +19,7 @@ class OpenAIProvider:
 
     async def generate_cad(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict],
         previous_error: str | None = None,
         cad_kernel: str = "cadquery",
     ) -> CADGenerationResponse:
@@ -44,10 +45,20 @@ class OpenAIProvider:
 
 
 def _with_repair_message(
-    messages: list[dict[str, str]],
+    messages: list[dict],
     previous_error: str | None,
-) -> list[dict[str, str]]:
-    result = [{"role": item["role"], "content": item["content"]} for item in messages]
+) -> list[dict]:
+    result = [
+        {
+            "role": item["role"],
+            "content": (
+                item.get("content", "")
+                if item.get("role") == "assistant"
+                else openai_response_content(item)
+            ),
+        }
+        for item in messages
+    ]
     if previous_error:
         result.append({"role": "user", "content": build_repair_prompt(previous_error)})
     return result

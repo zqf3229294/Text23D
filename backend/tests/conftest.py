@@ -42,6 +42,9 @@ def test_settings(tmp_path):
     return Settings(
         database_path=tmp_path / "text23d.sqlite3",
         storage_dir=tmp_path / "artifacts",
+        cad_kernel="cadquery",
+        generation_mode="script",
+        image_input_enabled=False,
         llm_provider="mock",
     )
 

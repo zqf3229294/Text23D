@@ -8,9 +8,15 @@ This repository currently contains the first local MVP scaffold:
 - Python/FastAPI backend for conversations, generation jobs, artifacts, and provider adapters.
 - Local CadQuery runner that exports `STEP` for CAD download and `GLB` for browser preview.
 - Optional FreeCAD runner that exports editable `FCStd`, `STEP`, and `STL` preview files.
+- Optional FreeCAD agent mode that streams backend tool progress and view updates to the browser.
 - SQLite plus filesystem storage for local single-user development.
 
 The default LLM provider is `mock`, so the stack can be tested before connecting OpenAI or Anthropic credentials.
+
+## Live Demo
+
+A public demo is hosted at [https://www.littletreenuts.com](https://www.littletreenuts.com).
+Use it to try the browser-based 3D CAD generation workflow without setting up the project locally.
 
 ## Repository Layout
 
@@ -113,6 +119,42 @@ TEXT23D_FREECAD_PYTHON=C:\Program Files\FreeCAD 1.0\bin\FreeCADCmd.exe
 
 CadQuery produces `STEP` and `GLB`. FreeCAD produces `FCStd`, `STEP`, and `STL`; the `FCStd` artifact keeps the FreeCAD document tree for manual editing.
 
+## Generation Modes
+
+The default mode is one-shot script generation:
+
+```text
+TEXT23D_GENERATION_MODE=script
+```
+
+Agent mode is opt-in and currently targets FreeCAD:
+
+```text
+TEXT23D_GENERATION_MODE=agent
+TEXT23D_CAD_KERNEL=freecad
+TEXT23D_LLM_PROVIDER=anthropic
+TEXT23D_ANTHROPIC_API_KEY=your_anthropic_key
+TEXT23D_FREECAD_AGENT_BACKEND=worker
+TEXT23D_FREECAD_PYTHON=C:\Program Files\FreeCAD 1.1\bin\python.exe
+TEXT23D_FREECAD_GUI_EXECUTABLE=
+TEXT23D_FREECAD_WORKER_VIEW_BACKEND=pyvista
+```
+
+In agent mode the backend owns the LLM key, runs the tool loop, executes the FreeCAD tool subset, stores intermediate events, and streams status/view updates to the browser over WebSocket. The default FreeCAD agent backend uses a persistent worker per conversation for live document edits. `TEXT23D_FREECAD_WORKER_VIEW_BACKEND=pyvista` exports a temporary FreeCAD STL preview and renders a backend PNG with PyVista, then sends that PNG back to Claude in Anthropic agent mode. Install it with `python -m pip install -e ".[render]"` from `backend`. If VTK/OpenGL cannot initialize, the backend falls back to a CPU STL renderer; if mesh rendering fails entirely, it returns a stable SVG object summary. On Windows, set `TEXT23D_FREECAD_PYTHON` to FreeCAD's bundled `python.exe`; launching the worker through `FreeCAD.exe` can open the GUI without responding to the backend worker protocol. Set `TEXT23D_FREECAD_WORKER_VIEW_BACKEND=gui` only when native FreeCAD viewport PNG screenshots are stable on your machine. Use `TEXT23D_LLM_PROVIDER=mock` for a local smoke test without an external model, or set `TEXT23D_FREECAD_AGENT_BACKEND=replay` to use the older `FreeCADCmd` replay fallback.
+
+For future Linux/headless deployment, run the worker under `xvfb-run` or a managed `Xvfb :99` with `DISPLAY=:99`; this Windows-first version does not manage Xvfb itself.
+
+Image input remains off by default behind a feature flag:
+
+```text
+TEXT23D_IMAGE_INPUT_ENABLED=false
+TEXT23D_IMAGE_MAX_UPLOAD_BYTES=5242880
+TEXT23D_IMAGE_MAX_COUNT_PER_MESSAGE=4
+TEXT23D_IMAGE_ALLOWED_CONTENT_TYPES=["image/png","image/jpeg","image/webp"]
+```
+
+When enabled, the frontend shows an image attachment control. Images are uploaded to the backend first, linked to the chat message, stored under the conversation artifact folder, and passed to multimodal-capable providers as image context. Provider/model support still matters: Anthropic receives native image blocks, OpenAI receives Responses API image blocks, and OpenAI-compatible providers default to text-only attachment summaries unless their image support flag is enabled.
+
 DeepSeek V4 example:
 
 ```text
@@ -120,6 +162,7 @@ TEXT23D_LLM_PROVIDER=deepseek
 TEXT23D_DEEPSEEK_API_KEY=your_deepseek_key
 TEXT23D_DEEPSEEK_BASE_URL=https://api.deepseek.com
 TEXT23D_DEEPSEEK_MODEL=deepseek-v4-flash
+TEXT23D_DEEPSEEK_SUPPORTS_IMAGES=false
 ```
 
 Use `deepseek-v4-pro` for higher-quality CAD script generation if the extra cost is acceptable.
@@ -132,6 +175,8 @@ Core endpoints:
 - `GET /api/conversations/{conversation_id}`
 - `POST /api/conversations/{conversation_id}/messages`
 - `GET /api/generations/{generation_id}`
+- `GET /api/generations/{generation_id}/events`
+- `WS /api/generations/{generation_id}/stream`
 - `GET /api/generations/{generation_id}/artifacts/{kind}`
 
 See [docs/API.md](docs/API.md) for examples.
@@ -159,8 +204,17 @@ cd frontend
 npm test
 ```
 
+## License
+
+Text23D Mechanical is released under the MIT License. See [LICENSE](LICENSE)
+for details.
+
+If you copied or adapted source from MIT-licensed upstream projects, keep the
+upstream copyright and license notices with those portions of the code. See
+[NOTICE](NOTICE) for the project attribution note.
+
 ## Scope
 
 This is a local single-user prototype. It does not include authentication, multi-user isolation, image input, engineering simulation, production deployment, or a hardened multi-tenant sandbox.
 
-Generated CadQuery code runs directly on the local machine in a subprocess. Use this only for local development with trusted prompts and provider settings.
+Generated CadQuery and FreeCAD code runs directly on the local machine in subprocesses. Agent mode logs tool calls and limits runtime/tool/code size, but it is still a local prototype rather than a hardened sandbox.

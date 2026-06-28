@@ -1,10 +1,11 @@
 from .base import CADGenerationResponse
+from .multimodal import message_attachments, message_text
 
 
 class MockLLMProvider:
     async def generate_cad(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict],
         previous_error: str | None = None,
         cad_kernel: str = "cadquery",
     ) -> CADGenerationResponse:
@@ -22,16 +23,25 @@ class MockLLMProvider:
             if "hole" in prompt.lower()
             else "Generated a simple parametric mounting bracket concept."
         )
+        if _latest_user_attachments(messages):
+            summary += " Attached image references were included in the prompt context."
         if previous_error:
             summary += " The script was simplified after a repair attempt."
         return CADGenerationResponse(assistant_summary=summary, code=code)
 
 
-def _latest_user_prompt(messages: list[dict[str, str]]) -> str:
+def _latest_user_prompt(messages: list[dict]) -> str:
     for message in reversed(messages):
         if message.get("role") == "user":
-            return message.get("content", "")
+            return message_text(message)
     return ""
+
+
+def _latest_user_attachments(messages: list[dict]) -> list[dict]:
+    for message in reversed(messages):
+        if message.get("role") == "user":
+            return message_attachments(message)
+    return []
 
 
 def _cube_with_hole() -> str:

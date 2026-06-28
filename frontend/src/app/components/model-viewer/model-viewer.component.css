@@ -11,8 +11,8 @@
   min-height: 0;
   overflow: hidden;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0)),
-    #11151d;
+    linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(232, 241, 255, 0.45)),
+    #eef4fb;
 }
 
 .canvas-host {
@@ -34,9 +34,9 @@
   display: flex;
   gap: 8px;
   padding: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(107, 119, 140, 0.22);
   border-radius: 8px;
-  background: rgba(21, 25, 34, 0.88);
+  background: rgba(255, 255, 255, 0.9);
   box-shadow: var(--shadow);
   backdrop-filter: blur(10px);
 }
@@ -52,7 +52,7 @@ a {
   border: 1px solid var(--line);
   border-radius: 6px;
   color: var(--text);
-  background: #10141b;
+  background: #ffffff;
   font-weight: 800;
   font-size: 12px;
   text-decoration: none;
@@ -74,7 +74,7 @@ a:hover {
   padding: 16px 18px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgba(21, 25, 34, 0.92);
+  background: rgba(255, 255, 255, 0.94);
   color: var(--muted);
   text-align: center;
   line-height: 1.45;

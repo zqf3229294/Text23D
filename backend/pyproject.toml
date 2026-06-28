@@ -2,6 +2,7 @@
 name = "text23d-backend"
 version = "0.1.0"
 description = "FastAPI backend for the Text23D Mechanical MVP."
+license = { text = "MIT" }
 requires-python = ">=3.11"
 dependencies = [
   "anthropic>=0.39.0",
@@ -15,6 +16,9 @@ dependencies = [
 [project.optional-dependencies]
 cad = [
   "cadquery>=2.5,<3; python_version < '3.13'",
+]
+render = [
+  "pyvista>=0.45,<0.50",
 ]
 dev = [
   "httpx>=0.28.0",

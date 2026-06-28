@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 import uuid
 from datetime import datetime, timezone
@@ -26,6 +27,17 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS image_attachments (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    message_id TEXT REFERENCES messages(id) ON DELETE SET NULL,
+    filename TEXT NOT NULL,
+    content_type TEXT NOT NULL,
+    storage_path TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS generations (
     id TEXT PRIMARY KEY,
     conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
@@ -47,8 +59,28 @@ CREATE TABLE IF NOT EXISTS generations (
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_created
     ON messages(conversation_id, created_at);
 
+CREATE INDEX IF NOT EXISTS idx_image_attachments_conversation_created
+    ON image_attachments(conversation_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_image_attachments_message
+    ON image_attachments(message_id);
+
 CREATE INDEX IF NOT EXISTS idx_generations_conversation_created
     ON generations(conversation_id, created_at);
+
+CREATE TABLE IF NOT EXISTS generation_events (
+    id TEXT PRIMARY KEY,
+    generation_id TEXT NOT NULL REFERENCES generations(id) ON DELETE CASCADE,
+    event_type TEXT NOT NULL,
+    message TEXT NOT NULL,
+    tool_name TEXT,
+    asset_path TEXT,
+    data_json TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_generation_events_created
+    ON generation_events(generation_id, created_at);
 """
 
 
@@ -262,6 +294,201 @@ class SQLiteRepository:
         if generation is None:
             raise KeyError(f"Generation not found: {generation_id}")
         return generation
+
+    def create_generation_event(
+        self,
+        generation_id: str,
+        event_type: str,
+        message: str,
+        tool_name: str | None = None,
+        asset_path: str | None = None,
+        data: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        row = {
+            "id": new_id("evt"),
+            "generation_id": generation_id,
+            "event_type": event_type,
+            "message": message,
+            "tool_name": tool_name,
+            "asset_path": asset_path,
+            "data_json": json.dumps(data or {}),
+            "created_at": utc_now(),
+        }
+        with self.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO generation_events (
+                    id, generation_id, event_type, message, tool_name,
+                    asset_path, data_json, created_at
+                )
+                VALUES (
+                    :id, :generation_id, :event_type, :message, :tool_name,
+                    :asset_path, :data_json, :created_at
+                )
+                """,
+                row,
+            )
+        return row
+
+    def create_image_attachment(
+        self,
+        conversation_id: str,
+        filename: str,
+        content_type: str,
+        storage_path: str,
+        size_bytes: int,
+    ) -> dict[str, Any]:
+        row = {
+            "id": new_id("img"),
+            "conversation_id": conversation_id,
+            "message_id": None,
+            "filename": filename,
+            "content_type": content_type,
+            "storage_path": storage_path,
+            "size_bytes": size_bytes,
+            "created_at": utc_now(),
+        }
+        with self.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO image_attachments (
+                    id, conversation_id, message_id, filename, content_type,
+                    storage_path, size_bytes, created_at
+                )
+                VALUES (
+                    :id, :conversation_id, :message_id, :filename, :content_type,
+                    :storage_path, :size_bytes, :created_at
+                )
+                """,
+                row,
+            )
+        return row
+
+    def get_image_attachment(self, attachment_id: str) -> dict[str, Any] | None:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM image_attachments WHERE id = ?",
+                (attachment_id,),
+            ).fetchone()
+        return row_to_dict(row)
+
+    def list_message_attachments(self, message_id: str) -> list[dict[str, Any]]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM image_attachments
+                WHERE message_id = ?
+                ORDER BY created_at ASC, id ASC
+                """,
+                (message_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def list_attachments_for_messages(
+        self,
+        message_ids: list[str],
+    ) -> dict[str, list[dict[str, Any]]]:
+        if not message_ids:
+            return {}
+        placeholders = ", ".join("?" for _ in message_ids)
+        with self.connect() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM image_attachments
+                WHERE message_id IN ({placeholders})
+                ORDER BY created_at ASC, id ASC
+                """,
+                message_ids,
+            ).fetchall()
+        result: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            item = dict(row)
+            result.setdefault(item["message_id"], []).append(item)
+        return result
+
+    def list_conversation_attachments(
+        self,
+        conversation_id: str,
+    ) -> list[dict[str, Any]]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM image_attachments
+                WHERE conversation_id = ?
+                ORDER BY created_at ASC, id ASC
+                """,
+                (conversation_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def attach_images_to_message(
+        self,
+        conversation_id: str,
+        message_id: str,
+        attachment_ids: list[str],
+    ) -> list[dict[str, Any]]:
+        if not attachment_ids:
+            return []
+        unique_ids = list(dict.fromkeys(attachment_ids))
+        placeholders = ", ".join("?" for _ in unique_ids)
+        with self.connect() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM image_attachments
+                WHERE id IN ({placeholders})
+                """,
+                unique_ids,
+            ).fetchall()
+            found = {row["id"]: dict(row) for row in rows}
+            missing = [item for item in unique_ids if item not in found]
+            if missing:
+                raise ValueError(f"Image attachment not found: {missing[0]}")
+            for attachment_id in unique_ids:
+                attachment = found[attachment_id]
+                if attachment["conversation_id"] != conversation_id:
+                    raise ValueError("Image attachment belongs to another conversation.")
+                if attachment["message_id"] not in {None, message_id}:
+                    raise ValueError("Image attachment is already linked to a message.")
+            conn.execute(
+                f"""
+                UPDATE image_attachments
+                SET message_id = ?
+                WHERE id IN ({placeholders})
+                """,
+                [message_id, *unique_ids],
+            )
+        return [
+            attachment
+            for attachment_id in unique_ids
+            if (attachment := self.get_image_attachment(attachment_id)) is not None
+        ]
+
+    def list_generation_events(self, generation_id: str) -> list[dict[str, Any]]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM generation_events
+                WHERE generation_id = ?
+                ORDER BY created_at ASC, id ASC
+                """,
+                (generation_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_generation_event(
+        self,
+        generation_id: str,
+        event_id: str,
+    ) -> dict[str, Any] | None:
+        with self.connect() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM generation_events
+                WHERE generation_id = ? AND id = ?
+                """,
+                (generation_id, event_id),
+            ).fetchone()
+        return row_to_dict(row)
 
 
 def _ensure_column(

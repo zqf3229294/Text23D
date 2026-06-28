@@ -19,6 +19,7 @@ def create_provider(settings: Settings):
             model=settings.deepseek_model,
             provider_name="DeepSeek",
             max_tokens=settings.llm_max_tokens,
+            supports_image_input=settings.deepseek_supports_images,
         )
     if settings.llm_provider == "openai_compatible":
         return ChatCompletionsProvider(
@@ -27,5 +28,6 @@ def create_provider(settings: Settings):
             model=settings.openai_compatible_model,
             provider_name="OpenAI-compatible",
             max_tokens=settings.llm_max_tokens,
+            supports_image_input=settings.openai_compatible_supports_images,
         )
     raise ValueError(f"Unsupported LLM provider: {settings.llm_provider}")

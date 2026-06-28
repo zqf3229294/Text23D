@@ -1,8 +1,15 @@
 <aside class="chat-panel">
   <header class="panel-header">
-    <div>
-      <p class="eyebrow">Text23D Mechanical</p>
-      <h1>CAD Explorer</h1>
+    <div class="brand">
+      <img
+        src="assets/images/Logo_Text.png"
+        alt="Little Treenuts Design"
+        class="brand-logo"
+      />
+      <div class="brand-copy">
+        <p class="eyebrow">Text23D Mechanical</p>
+        <h1>CAD Explorer</h1>
+      </div>
     </div>
     <span class="status-dot" aria-hidden="true"></span>
   </header>
@@ -21,6 +28,13 @@
     >
       <span class="role">{{ message.role === 'user' ? 'You' : 'Assistant' }}</span>
       <p>{{ message.content }}</p>
+      <div class="message-images" *ngIf="message.attachments.length > 0">
+        <img
+          *ngFor="let attachment of message.attachments; trackBy: trackAttachment"
+          [src]="imageAttachmentUrl(attachment)"
+          [alt]="attachment.filename"
+        />
+      </div>
     </article>
   </section>
 
@@ -30,6 +44,26 @@
         {{ statusLabel(gen) }}
       </span>
       <span class="attempts">Attempts {{ gen.attempt_count }}</span>
+    </div>
+
+    <div class="event-list" *ngIf="events.length > 0" aria-label="Generation events">
+      <article
+        class="event"
+        *ngFor="let event of events; trackBy: trackEvent"
+        [class.error]="event.event_type === 'error'"
+        [class.screenshot]="event.event_type === 'screenshot'"
+      >
+        <div class="event-heading">
+          <span>{{ event.tool_name || event.event_type }}</span>
+          <time>{{ event.created_at | date: 'shortTime' }}</time>
+        </div>
+        <p>{{ event.message }}</p>
+        <img
+          *ngIf="event.has_asset && event.event_type === 'screenshot'"
+          [src]="eventAssetUrl(event)"
+          alt="FreeCAD generation view"
+        />
+      </article>
     </div>
 
     <p class="error-text" *ngIf="gen.status === 'failed'">{{ gen.error }}</p>
@@ -47,6 +81,39 @@
   <p class="load-error" *ngIf="loadError">{{ loadError }}</p>
 
   <form class="composer" (ngSubmit)="submit()">
+    <div class="image-tray" *ngIf="imageInputEnabled">
+      <label class="attach-button">
+        <input
+          type="file"
+          [accept]="acceptTypes"
+          multiple
+          [disabled]="isSending"
+          (change)="selectImages($event)"
+        />
+        Attach
+      </label>
+
+      <div class="selected-images" *ngIf="selectedImages.length > 0">
+        <figure
+          *ngFor="let image of selectedImages; let index = index; trackBy: trackSelectedImage"
+        >
+          <img [src]="image.previewUrl" [alt]="image.file.name" />
+          <figcaption>{{ image.file.name }}</figcaption>
+          <button
+            type="button"
+            class="remove-image"
+            [disabled]="isSending"
+            (click)="removeSelectedImage(index)"
+            [attr.aria-label]="'Remove ' + image.file.name"
+          >
+            x
+          </button>
+        </figure>
+      </div>
+
+      <p class="image-error" *ngIf="imageError">{{ imageError }}</p>
+    </div>
+
     <textarea
       name="prompt"
       [(ngModel)]="draft"
