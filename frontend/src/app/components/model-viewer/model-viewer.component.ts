@@ -102,7 +102,7 @@ export class ModelViewerComponent implements AfterViewInit, OnChanges, OnDestroy
   private initScene(): void {
     const host = this.canvasHost.nativeElement;
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x11151d);
+    this.scene.background = new THREE.Color(0xeef4fb);
 
     this.camera = new THREE.PerspectiveCamera(45, 1, 0.1, 5000);
     this.camera.position.set(90, 70, 110);
@@ -117,15 +117,15 @@ export class ModelViewerComponent implements AfterViewInit, OnChanges, OnDestroy
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
 
-    const hemi = new THREE.HemisphereLight(0xf7fbff, 0x252018, 1.7);
-    const key = new THREE.DirectionalLight(0xffffff, 2.5);
+    const hemi = new THREE.HemisphereLight(0xffffff, 0xcfd8e3, 1.85);
+    const key = new THREE.DirectionalLight(0xffffff, 2.3);
     key.position.set(90, 120, 80);
     key.castShadow = true;
-    const fill = new THREE.DirectionalLight(0x9fd9ff, 0.75);
+    const fill = new THREE.DirectionalLight(0x9fbce8, 0.85);
     fill.position.set(-80, 70, -120);
     this.scene.add(hemi, key, fill);
 
-    const grid = new THREE.GridHelper(180, 18, 0x59606b, 0x303743);
+    const grid = new THREE.GridHelper(180, 18, 0xaeb9c8, 0xd9e1ec);
     grid.position.y = -0.1;
     this.scene.add(grid);
 
@@ -199,7 +199,7 @@ export class ModelViewerComponent implements AfterViewInit, OnChanges, OnDestroy
       (geometry) => {
         geometry.computeVertexNormals();
         const material = new THREE.MeshStandardMaterial({
-          color: 0xaab4bd,
+          color: 0x9aa7b6,
           roughness: 0.72,
           metalness: 0.08
         });

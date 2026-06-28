@@ -17,12 +17,32 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 18px 20px 16px;
+  padding: 14px 20px 12px;
   border-bottom: 1px solid var(--line);
 }
 
+.brand {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.brand-logo {
+  display: block;
+  width: min(260px, 100%);
+  height: auto;
+  max-height: 82px;
+  object-fit: contain;
+  object-position: left center;
+}
+
+.brand-copy {
+  display: grid;
+  gap: 2px;
+}
+
 .eyebrow {
-  margin: 0 0 4px;
+  margin: 0;
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
@@ -41,7 +61,7 @@ h1 {
   height: 10px;
   border-radius: 999px;
   background: var(--accent);
-  box-shadow: 0 0 0 5px rgba(94, 200, 167, 0.12);
+  box-shadow: 0 0 0 5px rgba(37, 99, 235, 0.12);
 }
 
 .message-list {
@@ -76,13 +96,14 @@ h1 {
 
 .message.user {
   align-self: flex-end;
-  background: #18362f;
-  border-color: rgba(94, 200, 167, 0.24);
+  background: var(--accent-soft);
+  border-color: rgba(37, 99, 235, 0.24);
 }
 
 .message.assistant {
   align-self: flex-start;
-  background: #202631;
+  background: #ffffff;
+  border-color: var(--line);
 }
 
 .role {
@@ -126,19 +147,19 @@ h1 {
   min-height: 28px;
   padding: 4px 10px;
   border-radius: 999px;
-  background: rgba(240, 179, 91, 0.14);
+  background: rgba(183, 121, 31, 0.12);
   color: var(--warn);
   font-size: 12px;
   font-weight: 800;
 }
 
 .pill.ready {
-  background: rgba(94, 200, 167, 0.14);
+  background: rgba(37, 99, 235, 0.12);
   color: var(--accent);
 }
 
 .pill.failed {
-  background: rgba(255, 125, 125, 0.14);
+  background: rgba(217, 45, 32, 0.1);
   color: var(--danger);
 }
 
@@ -159,17 +180,17 @@ h1 {
   display: grid;
   gap: 6px;
   padding: 10px;
-  border: 1px solid rgba(127, 137, 152, 0.22);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: #151a23;
+  background: #ffffff;
 }
 
 .event.screenshot {
-  background: #171e26;
+  background: #f8fafc;
 }
 
 .event.error {
-  border-color: rgba(255, 125, 125, 0.35);
+  border-color: rgba(217, 45, 32, 0.28);
 }
 
 .event-heading {
@@ -211,7 +232,7 @@ h1 {
   object-fit: cover;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #0f131a;
+  background: #f8fafc;
 }
 
 .event img {
@@ -220,7 +241,7 @@ h1 {
   object-fit: contain;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #0f131a;
+  background: #f8fafc;
 }
 
 .artifact-links a {
@@ -232,7 +253,7 @@ h1 {
   font-size: 12px;
   font-weight: 700;
   text-decoration: none;
-  background: #11151d;
+  background: #ffffff;
 }
 
 .artifact-links a:hover {
@@ -275,7 +296,7 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 6px;
   color: var(--text);
-  background: #11151d;
+  background: #ffffff;
   font-size: 12px;
   font-weight: 800;
   cursor: pointer;
@@ -313,7 +334,7 @@ h1 {
   object-fit: cover;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #0f131a;
+  background: #f8fafc;
 }
 
 .selected-images figcaption {
@@ -336,9 +357,9 @@ h1 {
   height: 22px;
   min-height: 22px;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(23, 32, 51, 0.14);
   border-radius: 999px;
-  color: var(--text);
+  color: #ffffff;
   background: rgba(15, 19, 26, 0.82);
   font-size: 14px;
   line-height: 1;
@@ -358,7 +379,7 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px;
-  background: #10141b;
+  background: #ffffff;
   color: var(--text);
   outline: none;
 }
@@ -373,7 +394,7 @@ button {
   min-height: 42px;
   border: 0;
   border-radius: 8px;
-  color: #08110e;
+  color: #ffffff;
   background: var(--accent);
   font-weight: 800;
   cursor: pointer;
