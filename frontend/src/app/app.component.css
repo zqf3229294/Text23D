@@ -18,7 +18,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 12px;
   min-height: 38px;
   padding: 8px 16px;
   border-top: 1px solid var(--line);
@@ -27,6 +27,20 @@
   font-size: 12px;
   line-height: 1.35;
   text-align: center;
+}
+
+.footer-contact {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.footer-version {
+  color: var(--quiet);
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .site-footer a {

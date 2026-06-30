@@ -17,6 +17,7 @@ The default LLM provider is `mock`, so the stack can be tested before connecting
 
 A public demo is hosted at [https://www.littletreenuts.com](https://www.littletreenuts.com).
 Use it to try the browser-based 3D CAD generation workflow without setting up the project locally.
+This is an early beta demo. Features may be incomplete or change without notice.
 
 ## Repository Layout
 
