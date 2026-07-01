@@ -19,7 +19,7 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
-  min-height: 38px;
+  min-height: 46px;
   padding: 8px 16px;
   border-top: 1px solid var(--line);
   background: #ffffff;
@@ -29,12 +29,17 @@
   text-align: center;
 }
 
+.footer-about,
 .footer-contact {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.footer-about {
+  color: var(--text);
 }
 
 .footer-version {
@@ -66,7 +71,7 @@
   }
 }
 
-@media (max-width: 620px) {
+@media (max-width: 980px) {
   .site-footer {
     flex-wrap: wrap;
   }
