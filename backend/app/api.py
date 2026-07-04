@@ -1,5 +1,6 @@
 import asyncio
 import re
+import time
 import uuid
 from pathlib import Path
 
@@ -220,6 +221,18 @@ def get_generation(
     return serialize_generation(generation)
 
 
+@router.post("/generations/{generation_id}/cancel", response_model=GenerationRead)
+def cancel_generation(
+    generation_id: str,
+    generation_service: GenerationService = Depends(get_generation_service),
+):
+    try:
+        generation = generation_service.cancel_generation(generation_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Generation not found.") from None
+    return serialize_generation(generation)
+
+
 @router.get(
     "/generations/{generation_id}/events",
     response_model=list[GenerationEventRead],
@@ -276,6 +289,7 @@ async def stream_generation_events(websocket: WebSocket, generation_id: str):
             return
 
         seen: set[str] = set()
+        last_sent_at = time.monotonic()
         while True:
             events = repository.list_generation_events(generation_id)
             for event in events:
@@ -284,9 +298,14 @@ async def stream_generation_events(websocket: WebSocket, generation_id: str):
                 seen.add(event["id"])
                 payload = serialize_generation_event(event).model_dump(mode="json")
                 await websocket.send_json({"type": "event", "event": payload})
+                last_sent_at = time.monotonic()
 
             generation = repository.get_generation(generation_id)
-            if generation and generation["status"] in {"succeeded", "failed"}:
+            if generation and generation["status"] in {
+                "succeeded",
+                "failed",
+                "cancelled",
+            }:
                 await websocket.send_json(
                     {
                         "type": "done",
@@ -295,8 +314,13 @@ async def stream_generation_events(websocket: WebSocket, generation_id: str):
                         ),
                     }
                 )
+                last_sent_at = time.monotonic()
                 await websocket.close()
                 return
+
+            if time.monotonic() - last_sent_at >= 15:
+                await websocket.send_json({"type": "heartbeat"})
+                last_sent_at = time.monotonic()
 
             await asyncio.sleep(0.5)
     except WebSocketDisconnect:

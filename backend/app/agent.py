@@ -90,6 +90,12 @@ class CADAgent:
                 generation["conversation_id"],
             )
 
+    def cancel_generation(self, generation: dict[str, Any]) -> None:
+        self.session_manager.abort_session(
+            generation_id=generation["id"],
+            conversation_id=generation["conversation_id"],
+        )
+
     async def _run_mock(
         self,
         generation_id: str,
@@ -105,7 +111,21 @@ class CADAgent:
             ("export_model", {}),
         ]
         final_result: FreeCADToolResult | None = None
-        for name, arguments in steps:
+        for iteration, (name, arguments) in enumerate(steps, start=1):
+            if self._is_cancelled(generation_id):
+                return AgentRunResult(
+                    success=False,
+                    assistant_summary="Generation cancelled.",
+                    error="Generation cancelled by user.",
+                    log_path=session.tool_log_path,
+                    tool_call_count=session.tool_call_count,
+                )
+            self._event(
+                generation_id,
+                GenerationEventType.status,
+                f"Agent iteration {iteration}: running FreeCAD tool {name}.",
+                data={"iteration": iteration, "tool_name": name},
+            )
             final_result = await self._execute_tool(generation_id, session, name, arguments)
             if not final_result.ok:
                 return AgentRunResult(
@@ -149,9 +169,18 @@ class CADAgent:
         messages = _anthropic_context(context)
         started = time.monotonic()
         tool_calls = 0
+        iteration = 0
         final_text = ""
 
         while True:
+            if self._is_cancelled(generation_id):
+                return AgentRunResult(
+                    success=False,
+                    assistant_summary="Generation cancelled.",
+                    error="Generation cancelled by user.",
+                    log_path=session.tool_log_path,
+                    tool_call_count=tool_calls,
+                )
             if time.monotonic() - started > self.settings.agent_max_runtime_seconds:
                 return AgentRunResult(
                     success=False,
@@ -169,6 +198,13 @@ class CADAgent:
                     tool_call_count=tool_calls,
                 )
 
+            iteration += 1
+            self._event(
+                generation_id,
+                GenerationEventType.status,
+                f"Agent iteration {iteration}: asking the model for the next FreeCAD action.",
+                data={"iteration": iteration},
+            )
             response = await client.messages.create(
                 model=self.settings.anthropic_model,
                 max_tokens=self.settings.llm_max_tokens,
@@ -176,6 +212,14 @@ class CADAgent:
                 tools=FREECAD_TOOLS,
                 messages=messages,
             )
+            if self._is_cancelled(generation_id):
+                return AgentRunResult(
+                    success=False,
+                    assistant_summary="Generation cancelled.",
+                    error="Generation cancelled by user.",
+                    log_path=session.tool_log_path,
+                    tool_call_count=tool_calls,
+                )
 
             content_blocks = [_anthropic_block_to_dict(block) for block in response.content]
             text = "\n".join(
@@ -224,6 +268,14 @@ class CADAgent:
             messages.append({"role": "assistant", "content": content_blocks})
             tool_results = []
             for block in tool_blocks:
+                if self._is_cancelled(generation_id):
+                    return AgentRunResult(
+                        success=False,
+                        assistant_summary="Generation cancelled.",
+                        error="Generation cancelled by user.",
+                        log_path=session.tool_log_path,
+                        tool_call_count=tool_calls,
+                    )
                 if tool_calls >= self.settings.agent_max_tool_calls:
                     break
                 tool_calls += 1
@@ -235,6 +287,25 @@ class CADAgent:
                 )
                 if not result.ok and result.content.get("fatal"):
                     error = str(result.content.get("error") or result.content)
+                    if session.last_result is not None and session.last_result.success:
+                        self._event(
+                            generation_id,
+                            GenerationEventType.error,
+                            (
+                                "FreeCAD worker stopped during a later refinement. "
+                                "Using the latest successful checkpoint."
+                            ),
+                            data={"error": error, "recovered_from_checkpoint": True},
+                        )
+                        return self._agent_success(
+                            session,
+                            final_text
+                            or (
+                                "The FreeCAD worker stopped during a later refinement, "
+                                "so I exported the latest successful checkpoint."
+                            ),
+                            tool_call_count=tool_calls,
+                        )
                     return AgentRunResult(
                         success=False,
                         assistant_summary="The FreeCAD worker stopped responding.",
@@ -293,7 +364,48 @@ class CADAgent:
                 tool_name=name,
                 data=result.content.get("artifacts", {}),
             )
+        elif result.ok and self._should_checkpoint(name, result, session):
+            await self._save_checkpoint(generation_id, session, name)
         return result
+
+    async def _save_checkpoint(
+        self,
+        generation_id: str,
+        session: FreeCADSession,
+        source_tool: str,
+    ) -> None:
+        checkpoint = await asyncio.to_thread(session.execute_tool, "export_model", {})
+        if not checkpoint.ok:
+            self._event(
+                generation_id,
+                GenerationEventType.status,
+                "FreeCAD checkpoint export was skipped.",
+                tool_name="export_model",
+                data=checkpoint.content,
+            )
+            return
+        self._event(
+            generation_id,
+            GenerationEventType.status,
+            "Saved a successful FreeCAD checkpoint.",
+            tool_name="export_model",
+            data={
+                "source_tool": source_tool,
+                "artifacts": checkpoint.content.get("artifacts", {}),
+            },
+        )
+
+    def _should_checkpoint(
+        self,
+        name: str,
+        result: FreeCADToolResult,
+        session: FreeCADSession,
+    ) -> bool:
+        if name == "execute_code" and session.last_result is None:
+            return _has_model_objects(result.content)
+        if name == "get_view":
+            return _has_model_objects(result.content)
+        return False
 
     def _agent_success(
         self,
@@ -339,6 +451,10 @@ class CADAgent:
             asset_path=str(asset_path) if asset_path else None,
             data=data or {},
         )
+
+    def _is_cancelled(self, generation_id: str) -> bool:
+        generation = self.repository.get_generation(generation_id)
+        return bool(generation and generation.get("status") == "cancelled")
 
 
 FREECAD_TOOLS: list[dict[str, Any]] = [
@@ -513,6 +629,14 @@ def _safe_event_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
     if isinstance(code, str) and len(code) > 600:
         safe["code"] = f"{code[:600]}... ({len(code)} chars)"
     return safe
+
+
+def _has_model_objects(content: dict[str, Any]) -> bool:
+    object_count = content.get("object_count")
+    if isinstance(object_count, int) and object_count > 0:
+        return True
+    objects = content.get("objects")
+    return isinstance(objects, list) and len(objects) > 0
 
 
 _ANTHROPIC_TOOL_IMAGE_MEDIA_TYPES = {

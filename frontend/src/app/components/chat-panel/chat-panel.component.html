@@ -40,19 +40,56 @@
 
   <section class="generation" *ngIf="generation as gen">
     <div class="generation-row">
-      <span class="pill" [class.ready]="gen.status === 'succeeded'" [class.failed]="gen.status === 'failed'">
+      <span
+        class="pill"
+        [class.ready]="gen.status === 'succeeded'"
+        [class.failed]="gen.status === 'failed'"
+        [class.cancelled]="gen.status === 'cancelled'"
+      >
         {{ statusLabel(gen) }}
       </span>
       <span class="attempts">Attempts {{ gen.attempt_count }}</span>
+      <span class="worked-time">{{ workDurationLabel(gen) }}</span>
+      <button
+        *ngIf="isGenerationActive(gen)"
+        type="button"
+        class="stop-generation"
+        (click)="requestCancel()"
+        aria-label="Stop generation"
+        title="Stop generation"
+      >
+        <span aria-hidden="true"></span>
+      </button>
     </div>
 
-    <div class="event-list" *ngIf="events.length > 0" aria-label="Generation events">
-      <article
-        class="event"
-        *ngFor="let event of events; trackBy: trackEvent"
-        [class.error]="event.event_type === 'error'"
-        [class.screenshot]="event.event_type === 'screenshot'"
+    <div class="event-panel" *ngIf="events.length > 0" [class.collapsed]="!eventsExpanded">
+      <button
+        type="button"
+        class="event-toggle"
+        (click)="toggleEvents()"
+        [attr.aria-expanded]="eventsExpanded"
+        aria-controls="generation-events"
       >
+        <span>Events</span>
+        <span class="event-count">{{ events.length }}</span>
+        <span class="event-toggle-icon" aria-hidden="true">
+          {{ eventsExpanded ? 'v' : '^' }}
+        </span>
+      </button>
+
+      <div
+        id="generation-events"
+        class="event-list"
+        *ngIf="eventsExpanded"
+        aria-label="Generation events"
+      >
+        <article
+          class="event"
+          *ngFor="let event of visibleEvents; let index = index; trackBy: trackEvent"
+          [ngClass]="eventStateClass(index)"
+          [class.error]="event.event_type === 'error'"
+          [class.screenshot]="event.event_type === 'screenshot'"
+        >
         <div class="event-heading">
           <span>{{ event.tool_name || event.event_type }}</span>
           <time>{{ event.created_at | date: 'shortTime' }}</time>
@@ -63,10 +100,13 @@
           [src]="eventAssetUrl(event)"
           alt="FreeCAD generation view"
         />
-      </article>
+        </article>
+      </div>
     </div>
 
-    <p class="error-text" *ngIf="gen.status === 'failed'">{{ gen.error }}</p>
+    <p class="error-text" *ngIf="gen.status === 'failed' || gen.status === 'cancelled'">
+      {{ gen.error }}
+    </p>
 
     <nav class="artifact-links" aria-label="Generated artifacts">
       <a *ngIf="gen.artifacts.step" [href]="artifactUrl(gen.id, 'step')" download>STEP</a>

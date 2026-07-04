@@ -31,6 +31,8 @@ class GenerationService:
         generation = self.repository.get_generation(generation_id)
         if generation is None:
             return
+        if generation["status"] == GenerationStatus.cancelled.value:
+            return
 
         self.repository.update_generation(
             generation_id,
@@ -52,6 +54,8 @@ class GenerationService:
         max_attempts = self.settings.generation_max_repair_attempts + 1
 
         for attempt in range(1, max_attempts + 1):
+            if self._is_cancelled(generation_id):
+                return
             self.repository.update_generation(
                 generation_id,
                 status=GenerationStatus.running.value,
@@ -70,11 +74,15 @@ class GenerationService:
                     self.settings.cad_kernel,
                 )
             except Exception as exc:
+                if self._is_cancelled(generation_id):
+                    return
                 await self._fail_generation(
                     generation_id,
                     f"LLM provider failed: {exc}",
                     None,
                 )
+                return
+            if self._is_cancelled(generation_id):
                 return
 
             script_path.write_text(response.code, encoding="utf-8")
@@ -94,6 +102,8 @@ class GenerationService:
                 continue
 
             result = await asyncio.to_thread(self.runner.run, script_path, attempt_dir)
+            if self._is_cancelled(generation_id):
+                return
             if result.success and result.step_path and (result.glb_path or result.stl_path):
                 self.repository.update_generation(
                     generation_id,
@@ -138,6 +148,31 @@ class GenerationService:
 
         await self._fail_generation(generation_id, previous_error or "Generation failed.", None)
 
+    def cancel_generation(self, generation_id: str) -> dict:
+        generation = self.repository.get_generation(generation_id)
+        if generation is None:
+            raise KeyError(f"Generation not found: {generation_id}")
+        if generation["status"] in {
+            GenerationStatus.succeeded.value,
+            GenerationStatus.failed.value,
+            GenerationStatus.cancelled.value,
+        }:
+            return generation
+
+        updated = self.repository.update_generation(
+            generation_id,
+            status=GenerationStatus.cancelled.value,
+            error="Generation cancelled by user.",
+        )
+        if self.agent is not None:
+            self.agent.cancel_generation(updated)
+        self._event(
+            generation_id,
+            GenerationEventType.status,
+            "Generation cancelled.",
+        )
+        return updated
+
     async def _run_agent_generation(
         self,
         generation: dict,
@@ -157,11 +192,16 @@ class GenerationService:
         try:
             result = await self.agent.run(generation, context, generation_dir)
         except Exception as exc:
+            if self._is_cancelled(generation_id):
+                return
             await self._fail_generation(
                 generation_id,
                 f"Agent failed: {exc}",
                 None,
             )
+            return
+
+        if self._is_cancelled(generation_id):
             return
 
         if result.success:
@@ -230,6 +270,8 @@ class GenerationService:
         generation = self.repository.get_generation(generation_id)
         if generation is None:
             return
+        if generation["status"] == GenerationStatus.cancelled.value:
+            return
         self.repository.update_generation(
             generation_id,
             status=GenerationStatus.failed.value,
@@ -246,6 +288,12 @@ class GenerationService:
             generation_id,
             GenerationEventType.error,
             error,
+        )
+
+    def _is_cancelled(self, generation_id: str) -> bool:
+        generation = self.repository.get_generation(generation_id)
+        return bool(
+            generation and generation["status"] == GenerationStatus.cancelled.value
         )
 
     def _event(

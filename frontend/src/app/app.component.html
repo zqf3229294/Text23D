@@ -10,6 +10,7 @@
     [isSending]="isSending"
     [loadError]="loadError"
     (send)="sendMessage($event)"
+    (cancel)="cancelGeneration()"
   ></app-chat-panel>
 
   <app-model-viewer [generation]="activeGeneration"></app-model-viewer>

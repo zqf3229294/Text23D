@@ -1,5 +1,13 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, OnDestroy, Output } from '@angular/core';
+import {
+  Component,
+  EventEmitter,
+  Input,
+  OnChanges,
+  OnDestroy,
+  Output,
+  SimpleChanges
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import { ApiService } from '../../services/api.service';
@@ -24,7 +32,7 @@ interface SelectedImage {
   templateUrl: './chat-panel.component.html',
   styleUrl: './chat-panel.component.css'
 })
-export class ChatPanelComponent implements OnDestroy {
+export class ChatPanelComponent implements OnChanges, OnDestroy {
   @Input() messages: Message[] = [];
   @Input() generation: Generation | null = null;
   @Input() events: GenerationEvent[] = [];
@@ -35,14 +43,35 @@ export class ChatPanelComponent implements OnDestroy {
   @Input() isSending = false;
   @Input() loadError = '';
   @Output() send = new EventEmitter<ChatSubmitPayload>();
+  @Output() cancel = new EventEmitter<void>();
 
   draft = '';
   selectedImages: SelectedImage[] = [];
   imageError = '';
+  eventsExpanded = true;
+  currentTimeMs = Date.now();
+
+  private readonly recentEventLimit = 4;
+  private lastGenerationId = '';
+  private durationTimer?: number;
 
   constructor(private readonly api: ApiService) {}
 
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['generation']) {
+      const generationId = this.generation?.id ?? '';
+      if (generationId !== this.lastGenerationId) {
+        this.lastGenerationId = generationId;
+        this.eventsExpanded = !this.isTerminalGeneration(this.generation);
+      } else if (this.isTerminalGeneration(this.generation)) {
+        this.eventsExpanded = false;
+      }
+    }
+    this.syncDurationTimer();
+  }
+
   ngOnDestroy(): void {
+    this.stopDurationTimer();
     this.clearSelectedImages();
   }
 
@@ -63,6 +92,26 @@ export class ChatPanelComponent implements OnDestroy {
     });
     this.draft = '';
     this.clearSelectedImages();
+  }
+
+  requestCancel(): void {
+    if (this.isGenerationActive(this.generation)) {
+      this.cancel.emit();
+    }
+  }
+
+  toggleEvents(): void {
+    this.eventsExpanded = !this.eventsExpanded;
+  }
+
+  get visibleEvents(): GenerationEvent[] {
+    if (!this.eventsExpanded && this.isTerminalGeneration(this.generation)) {
+      return [];
+    }
+    if (this.eventsExpanded && this.isTerminalGeneration(this.generation)) {
+      return this.events;
+    }
+    return this.events.slice(-this.recentEventLimit);
   }
 
   artifactUrl(generationId: string, kind: ArtifactKind): string {
@@ -122,10 +171,51 @@ export class ChatPanelComponent implements OnDestroy {
     if (status === 'failed') {
       return 'Failed';
     }
+    if (status === 'cancelled') {
+      return 'Stopped';
+    }
     if (status === 'running') {
       return `Running attempt ${Math.max(generation.attempt_count, 1)}`;
     }
     return 'Queued';
+  }
+
+  workDurationLabel(generation: Generation): string {
+    const started = Date.parse(generation.created_at);
+    const ended = this.isGenerationActive(generation)
+      ? this.currentTimeMs
+      : Date.parse(generation.updated_at);
+    if (!Number.isFinite(started) || !Number.isFinite(ended)) {
+      return 'Worked for 0 m 00 s';
+    }
+    const totalSeconds = Math.max(0, Math.floor((ended - started) / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `Worked for ${minutes} m ${seconds.toString().padStart(2, '0')} s`;
+  }
+
+  isGenerationActive(generation: Generation | null): boolean {
+    return generation?.status === 'queued' || generation?.status === 'running';
+  }
+
+  isTerminalGeneration(generation: Generation | null): boolean {
+    return (
+      generation?.status === 'succeeded' ||
+      generation?.status === 'failed' ||
+      generation?.status === 'cancelled'
+    );
+  }
+
+  eventStateClass(index: number): string {
+    const newestIndex = this.visibleEvents.length - 1;
+    const age = newestIndex - index;
+    if (age <= 0) {
+      return 'event-current';
+    }
+    if (age === 1) {
+      return 'event-recent';
+    }
+    return 'event-muted';
   }
 
   trackMessage(_index: number, message: Message): string {
@@ -150,5 +240,24 @@ export class ChatPanelComponent implements OnDestroy {
     }
     this.selectedImages = [];
     this.imageError = '';
+  }
+
+  private syncDurationTimer(): void {
+    if (this.isGenerationActive(this.generation)) {
+      if (this.durationTimer === undefined) {
+        this.durationTimer = window.setInterval(() => {
+          this.currentTimeMs = Date.now();
+        }, 1000);
+      }
+      return;
+    }
+    this.stopDurationTimer();
+  }
+
+  private stopDurationTimer(): void {
+    if (this.durationTimer !== undefined) {
+      window.clearInterval(this.durationTimer);
+      this.durationTimer = undefined;
+    }
   }
 }

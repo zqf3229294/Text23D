@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from app.main import create_app
+from app.models import GenerationStatus
 from tests.conftest import FakeRunner
 
 
@@ -60,6 +61,24 @@ def test_missing_conversation_returns_404(app):
     with TestClient(app) as client:
         response = client.get("/api/conversations/does-not-exist")
         assert response.status_code == 404
+
+
+def test_cancel_queued_generation(app):
+    repository = app.state.repository
+    conversation = repository.create_conversation("Cancel")
+    generation = repository.create_generation(conversation["id"], "make a long model")
+
+    with TestClient(app) as client:
+        response = client.post(f"/api/generations/{generation['id']}/cancel")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["status"] == "cancelled"
+        assert payload["error"] == "Generation cancelled by user."
+
+        updated = repository.get_generation(generation["id"])
+        assert updated["status"] == GenerationStatus.cancelled.value
+        events = repository.list_generation_events(generation["id"])
+        assert events[-1]["message"] == "Generation cancelled."
 
 
 def test_image_upload_disabled_returns_403(app):

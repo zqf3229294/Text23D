@@ -1,5 +1,10 @@
 export type MessageRole = 'user' | 'assistant';
-export type GenerationStatus = 'queued' | 'running' | 'succeeded' | 'failed';
+export type GenerationStatus =
+  | 'queued'
+  | 'running'
+  | 'succeeded'
+  | 'failed'
+  | 'cancelled';
 export type ArtifactKind = 'step' | 'glb' | 'stl' | 'native' | 'script' | 'log';
 export type GenerationEventType =
   | 'status'
