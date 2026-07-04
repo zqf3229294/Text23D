@@ -82,6 +82,9 @@ export class ModelViewerComponent implements AfterViewInit, OnChanges, OnDestroy
     if (this.generation.status === 'failed') {
       return 'Generation failed.';
     }
+    if (this.generation.status === 'cancelled') {
+      return 'Generation stopped.';
+    }
     if (this.generation.status === 'succeeded' && !this.modelRoot) {
       return 'Preview is not available.';
     }

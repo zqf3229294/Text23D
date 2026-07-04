@@ -141,6 +141,10 @@ h1 {
   gap: 8px;
 }
 
+.generation-row {
+  min-height: 32px;
+}
+
 .pill {
   display: inline-flex;
   align-items: center;
@@ -163,9 +167,107 @@ h1 {
   color: var(--danger);
 }
 
+.pill.cancelled {
+  background: rgba(100, 116, 139, 0.12);
+  color: #64748b;
+}
+
 .attempts {
   color: var(--quiet);
   font-size: 12px;
+}
+
+.worked-time {
+  min-height: 24px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--quiet);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.stop-generation {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 1px solid rgba(217, 45, 32, 0.24);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--danger);
+}
+
+.stop-generation span {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.stop-generation:hover {
+  border-color: var(--danger);
+  background: rgba(217, 45, 32, 0.06);
+}
+
+.event-panel {
+  display: grid;
+  gap: 8px;
+}
+
+.event-panel.collapsed {
+  gap: 0;
+}
+
+.event-toggle {
+  display: grid;
+  grid-template-columns: auto auto 24px;
+  align-items: center;
+  justify-content: start;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--quiet);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.event-toggle:hover {
+  border-color: var(--accent);
+  background: #f8fafc;
+}
+
+.event-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.event-toggle-icon {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 900;
 }
 
 .event-list {
@@ -183,6 +285,20 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #ffffff;
+  opacity: 0.46;
+  transition:
+    opacity 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.event.event-recent {
+  opacity: 0.68;
+}
+
+.event.event-current {
+  border-color: rgba(37, 99, 235, 0.28);
+  opacity: 1;
 }
 
 .event.screenshot {
@@ -378,7 +494,7 @@ textarea {
   resize: vertical;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 12px;
+  padding: 12px 44px 12px 12px;
   background: #ffffff;
   color: var(--text);
   outline: none;
@@ -386,6 +502,91 @@ textarea {
 
 textarea:focus {
   border-color: var(--accent);
+}
+
+.prompt-field {
+  position: relative;
+  min-width: 0;
+}
+
+.workflow-help {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  min-height: 24px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--accent);
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: help;
+  box-shadow: 0 4px 14px rgba(31, 42, 68, 0.08);
+}
+
+.workflow-help:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.workflow-tooltip {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  display: block;
+  width: min(280px, calc(100vw - 40px));
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition:
+    opacity 140ms ease 260ms,
+    transform 140ms ease 260ms;
+}
+
+.workflow-help::before {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  width: min(280px, calc(100vw - 40px));
+  height: 12px;
+}
+
+.workflow-tooltip a {
+  color: var(--accent);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.workflow-tooltip a:hover,
+.workflow-tooltip a:focus-visible {
+  text-decoration: underline;
+}
+
+.workflow-help:hover .workflow-tooltip,
+.workflow-help:focus-within .workflow-tooltip,
+.workflow-help:focus .workflow-tooltip {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+  transition-delay: 0ms;
 }
 
 button {
@@ -406,7 +607,7 @@ textarea:disabled {
   cursor: not-allowed;
 }
 
-button:not(:disabled):hover {
+button:not(.event-toggle):not(.stop-generation):not(:disabled):hover {
   background: var(--accent-strong);
 }
 

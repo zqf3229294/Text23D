@@ -70,6 +70,13 @@ export class ApiService {
     return this.http.get<Generation>(`${this.baseUrl}/api/generations/${generationId}`);
   }
 
+  cancelGeneration(generationId: string): Observable<Generation> {
+    return this.http.post<Generation>(
+      `${this.baseUrl}/api/generations/${generationId}/cancel`,
+      {}
+    );
+  }
+
   getGenerationEvents(generationId: string): Observable<GenerationEvent[]> {
     return this.http.get<GenerationEvent[]>(
       `${this.baseUrl}/api/generations/${generationId}/events`

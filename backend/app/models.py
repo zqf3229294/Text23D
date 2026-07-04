@@ -13,6 +13,7 @@ class GenerationStatus(str, Enum):
     running = "running"
     succeeded = "succeeded"
     failed = "failed"
+    cancelled = "cancelled"
 
 
 class GenerationEventType(str, Enum):

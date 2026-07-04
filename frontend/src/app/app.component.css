@@ -1,5 +1,6 @@
 :host {
-  display: block;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
   width: 100%;
   height: 100vh;
 }
@@ -13,6 +14,50 @@
   background: var(--bg);
 }
 
+.site-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 46px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--line);
+  background: #ffffff;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.footer-about,
+.footer-contact {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.footer-about {
+  color: var(--text);
+}
+
+.footer-version {
+  color: var(--quiet);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.site-footer a {
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  text-decoration: underline;
+}
+
 @media (max-width: 860px) {
   :host {
     min-height: 100vh;
@@ -23,5 +68,11 @@
     grid-template-columns: 1fr;
     grid-template-rows: minmax(420px, 48vh) minmax(520px, 52vh);
     min-height: 100vh;
+  }
+}
+
+@media (max-width: 980px) {
+  .site-footer {
+    flex-wrap: wrap;
   }
 }

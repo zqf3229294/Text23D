@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, NgZone, OnDestroy, OnInit } from '@angular/core';
-import { finalize, forkJoin, of, Subscription, switchMap, takeWhile, tap, timer } from 'rxjs';
+import { finalize, forkJoin, of, Subscription, switchMap, timer } from 'rxjs';
 
 import { ChatPanelComponent } from './components/chat-panel/chat-panel.component';
 import { ModelViewerComponent } from './components/model-viewer/model-viewer.component';
@@ -33,7 +33,9 @@ export class AppComponent implements OnInit, OnDestroy {
   loadError = '';
 
   private polling?: Subscription;
+  private eventPolling?: Subscription;
   private eventSocket?: WebSocket;
+  private streamCompleted = false;
 
   constructor(
     private readonly api: ApiService,
@@ -64,6 +66,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.polling?.unsubscribe();
+    this.eventPolling?.unsubscribe();
     this.eventSocket?.close();
   }
 
@@ -110,26 +113,46 @@ export class AppComponent implements OnInit, OnDestroy {
 
   private pollGeneration(generationId: string): void {
     this.polling?.unsubscribe();
-    this.polling = timer(0, 1400)
-      .pipe(
-        switchMap(() => this.api.getGeneration(generationId)),
-        tap((generation) => this.applyGeneration(generation)),
-        takeWhile(
-          (generation) =>
-            generation.status === 'queued' || generation.status === 'running',
-          true
-        ),
-        finalize(() => this.refreshConversation())
-      )
+    this.polling = timer(4000, 4000)
+      .pipe(switchMap(() => this.api.getGeneration(generationId)))
       .subscribe({
+        next: (generation) => {
+          this.applyGeneration(generation);
+          if (generation.status !== 'queued' && generation.status !== 'running') {
+            this.finishGenerationWatch(generation);
+          }
+        },
         error: () => {
           this.loadError = 'Generation status could not be refreshed.';
         }
       });
   }
 
+  cancelGeneration(): void {
+    const generation = this.activeGeneration;
+    if (
+      !generation ||
+      (generation.status !== 'queued' && generation.status !== 'running')
+    ) {
+      return;
+    }
+    this.api.cancelGeneration(generation.id).subscribe({
+      next: (updated) => {
+        this.finishGenerationWatch(updated);
+      },
+      error: () => {
+        this.loadError = 'Generation could not be stopped.';
+      }
+    });
+  }
+
   private streamGenerationEvents(generationId: string): void {
+    this.streamCompleted = true;
     this.eventSocket?.close();
+    this.eventPolling?.unsubscribe();
+    this.eventPolling = undefined;
+    this.streamCompleted = false;
+
     this.api.getGenerationEvents(generationId).subscribe({
       next: (events) => {
         this.mergeGenerationEvents(events);
@@ -139,14 +162,58 @@ export class AppComponent implements OnInit, OnDestroy {
     const socket = new WebSocket(this.api.generationStreamUrl(generationId));
     this.eventSocket = socket;
 
+    socket.onopen = () => {
+      this.zone.run(() => {
+        this.loadError = '';
+      });
+    };
     socket.onmessage = (message) => {
       this.zone.run(() => this.acceptStreamMessage(message.data));
     };
-    socket.onerror = () => {
+    socket.onerror = () => undefined;
+    socket.onclose = () => {
       this.zone.run(() => {
-        this.loadError = 'Live generation updates disconnected.';
+        if (this.eventSocket === socket) {
+          this.eventSocket = undefined;
+        }
+        if (!this.streamCompleted && this.isActiveGeneration(generationId)) {
+          this.startEventPollingFallback(generationId);
+        }
       });
     };
+  }
+
+  private startEventPollingFallback(generationId: string): void {
+    if (this.eventPolling || this.streamCompleted) {
+      return;
+    }
+    this.eventPolling = timer(0, 2500)
+      .pipe(switchMap(() => this.api.getGenerationEvents(generationId)))
+      .subscribe({
+        next: (events) => {
+          this.mergeGenerationEvents(events);
+        },
+        error: () => {
+          this.loadError = 'Generation events could not be refreshed.';
+        }
+      });
+  }
+
+  private finishGenerationWatch(generation: Generation): void {
+    this.streamCompleted = true;
+    this.applyGeneration(generation);
+    this.polling?.unsubscribe();
+    this.polling = undefined;
+    this.eventPolling?.unsubscribe();
+    this.eventPolling = undefined;
+    this.eventSocket?.close();
+    this.eventSocket = undefined;
+    this.api.getGenerationEvents(generation.id).subscribe({
+      next: (events) => {
+        this.mergeGenerationEvents(events);
+      }
+    });
+    this.refreshConversation();
   }
 
   private refreshConversation(): void {
@@ -193,14 +260,17 @@ export class AppComponent implements OnInit, OnDestroy {
       return;
     }
 
+    if (payload.type === 'heartbeat') {
+      return;
+    }
+
     if (payload.type === 'event' && payload.event) {
       this.mergeGenerationEvents([payload.event]);
       return;
     }
 
     if (payload.type === 'done' && payload.generation) {
-      this.applyGeneration(payload.generation);
-      this.refreshConversation();
+      this.finishGenerationWatch(payload.generation);
       return;
     }
 
@@ -216,6 +286,14 @@ export class AppComponent implements OnInit, OnDestroy {
     }
     this.generationEvents = Array.from(existing.values()).sort((a, b) =>
       a.created_at.localeCompare(b.created_at)
+    );
+  }
+
+  private isActiveGeneration(generationId: string): boolean {
+    return (
+      this.activeGeneration?.id === generationId &&
+      (this.activeGeneration.status === 'queued' ||
+        this.activeGeneration.status === 'running')
     );
   }
 }

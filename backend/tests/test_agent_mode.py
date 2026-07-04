@@ -113,6 +113,19 @@ class DeadWorkerClient:
         return
 
 
+class TimeoutAfterCheckpointWorkerClient(FakeWorkerClient):
+    def __init__(self, log_path: Path):
+        super().__init__(log_path)
+        self.execute_code_calls = 0
+
+    def request(self, command: str, args: dict | None = None):
+        if command == "execute_code":
+            self.execute_code_calls += 1
+            if self.execute_code_calls > 1:
+                raise TimeoutError("FreeCAD worker command timed out: execute_code")
+        return super().request(command, args)
+
+
 class FakeFreeCADRunner:
     def run(self, script_path: Path, output_dir: Path) -> RunnerResult:
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -203,9 +216,13 @@ def test_mock_freecad_agent_exports_artifacts_and_events(tmp_path):
 
     events = repository.list_generation_events(generation["id"])
     event_types = [event["event_type"] for event in events]
+    status_messages = [
+        event["message"] for event in events if event["event_type"] == "status"
+    ]
     assert "tool_call" in event_types
     assert "screenshot" in event_types
     assert "artifact" in event_types
+    assert any("Agent iteration 1:" in message for message in status_messages)
 
     screenshot = next(event for event in events if event["event_type"] == "screenshot")
     assert screenshot["asset_path"] and Path(screenshot["asset_path"]).exists()
@@ -439,6 +456,105 @@ def test_anthropic_agent_stops_on_fatal_worker_error(tmp_path, monkeypatch):
     assert calls["count"] == 1
 
 
+def test_anthropic_agent_uses_checkpoint_after_later_worker_timeout(
+    tmp_path,
+    monkeypatch,
+):
+    calls = {"count": 0}
+
+    class FakeMessages:
+        async def create(self, **kwargs):
+            calls["count"] += 1
+            if calls["count"] == 1:
+                return types.SimpleNamespace(
+                    content=[
+                        types.SimpleNamespace(
+                            type="tool_use",
+                            id="toolu_create_document",
+                            name="create_document",
+                            input={"name": "Text23D"},
+                        ),
+                        types.SimpleNamespace(
+                            type="tool_use",
+                            id="toolu_execute_initial",
+                            name="execute_code",
+                            input={"code": "box = doc.addObject('Part::Box', 'Box')"},
+                        ),
+                    ]
+                )
+            return types.SimpleNamespace(
+                content=[
+                        types.SimpleNamespace(
+                            type="tool_use",
+                            id="toolu_execute_timeout",
+                            name="execute_code",
+                            input={"code": "box = doc.addObject('Part::Box', 'Box2')"},
+                        )
+                ]
+            )
+
+    class FakeAsyncAnthropic:
+        def __init__(self, api_key: str):
+            self.messages = FakeMessages()
+
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        types.SimpleNamespace(AsyncAnthropic=FakeAsyncAnthropic),
+    )
+    settings = Settings(
+        database_path=tmp_path / "db.sqlite3",
+        storage_dir=tmp_path / "artifacts",
+        cad_kernel="freecad",
+        generation_mode="agent",
+        freecad_agent_backend="worker",
+        llm_provider="anthropic",
+        anthropic_api_key="test-key",
+        agent_max_runtime_seconds=30,
+    )
+    repository = SQLiteRepository(settings.database_path)
+    runner = FakeFreeCADRunner()
+    clients = []
+
+    def client_factory(log_path: Path):
+        client = TimeoutAfterCheckpointWorkerClient(log_path)
+        clients.append(client)
+        return client
+
+    agent = CADAgent(
+        settings,
+        repository,
+        FreeCADSessionManager(settings, runner, worker_client_factory=client_factory),
+    )
+    conversation = repository.create_conversation()
+    generation = repository.create_generation(conversation["id"], "make a bracket")
+
+    result = asyncio.run(
+        agent.run(
+            generation,
+            [{"role": "user", "content": "make a bracket"}],
+            tmp_path / "generation",
+        )
+    )
+
+    assert result.success
+    assert result.step_path and result.step_path.exists()
+    assert result.native_path and result.native_path.exists()
+    assert calls["count"] == 2
+    assert [
+        command for command, _args in clients[0].requests if command == "export_model"
+    ] == ["export_model"]
+    events = repository.list_generation_events(generation["id"])
+    assert any(
+        event["message"] == "Saved a successful FreeCAD checkpoint."
+        for event in events
+    )
+    assert any(
+        "Using the latest successful checkpoint" in event["message"]
+        for event in events
+    )
+
+
 def test_anthropic_agent_does_not_export_twice_after_tool_export(tmp_path, monkeypatch):
     calls = {"count": 0}
 
@@ -509,6 +625,12 @@ def test_anthropic_agent_does_not_export_twice_after_tool_export(tmp_path, monke
     )
 
     assert result.success
+    events = repository.list_generation_events(generation["id"])
+    status_messages = [
+        event["message"] for event in events if event["event_type"] == "status"
+    ]
+    assert any("Agent iteration 1:" in message for message in status_messages)
+    assert any("Agent iteration 2:" in message for message in status_messages)
     assert calls["count"] == 2
     assert [
         command

@@ -49,6 +49,9 @@ class FreeCADSession:
     def close(self) -> None:
         ...
 
+    def abort(self) -> None:
+        ...
+
 
 class FreeCADWorkerClient:
     def __init__(self, settings: Settings, log_path: Path):
@@ -73,13 +76,21 @@ class FreeCADWorkerClient:
 
             deadline = time.monotonic() + self.settings.freecad_worker_timeout_seconds
             while True:
+                if self.process.poll() is not None:
+                    raise RuntimeError(
+                        f"FreeCAD worker exited with {self.process.returncode}."
+                    )
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     raise TimeoutError(f"FreeCAD worker command timed out: {command}")
                 try:
-                    line = self._stdout_queue.get(timeout=remaining)
+                    line = self._stdout_queue.get(timeout=min(remaining, 0.5))
                 except queue.Empty as exc:
-                    raise TimeoutError(f"FreeCAD worker command timed out: {command}") from exc
+                    if self.process.poll() is not None:
+                        raise RuntimeError(
+                            f"FreeCAD worker exited with {self.process.returncode}."
+                        ) from exc
+                    continue
 
                 try:
                     response = json.loads(line)
@@ -245,6 +256,20 @@ class FreeCADSessionManager:
             if session:
                 session.close()
 
+    def abort_session(
+        self,
+        generation_id: str | None = None,
+        conversation_id: str | None = None,
+    ) -> None:
+        if generation_id:
+            session = self._replay_sessions.pop(generation_id, None)
+            if session:
+                session.abort()
+        if conversation_id:
+            session = self._worker_sessions.pop(conversation_id, None)
+            if session:
+                session.abort()
+
     def cleanup_idle_sessions(self) -> None:
         now = time.monotonic()
         expired = [
@@ -322,6 +347,10 @@ class WorkerFreeCADSession(FreeCADSession):
 
     def close(self) -> None:
         self._close_client(graceful=not self.failed)
+
+    def abort(self) -> None:
+        self.failed = True
+        self._close_client(graceful=False)
 
     def touch(self) -> None:
         self.last_used_at = time.monotonic()
@@ -559,6 +588,9 @@ class ReplayFreeCADSession(FreeCADSession):
         )
 
     def close(self) -> None:
+        return
+
+    def abort(self) -> None:
         return
 
     def create_document(self, name: str | None = None) -> FreeCADToolResult:

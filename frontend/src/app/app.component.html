@@ -10,7 +10,27 @@
     [isSending]="isSending"
     [loadError]="loadError"
     (send)="sendMessage($event)"
+    (cancel)="cancelGeneration()"
   ></app-chat-panel>
 
   <app-model-viewer [generation]="activeGeneration"></app-model-viewer>
 </main>
+
+<footer class="site-footer">
+  <span class="footer-about">
+    Demo site for the Text23D AI-assisted Mechanical CAD platform.
+    Source code:
+    <a
+      href="https://github.com/zqf3229294/Text23D"
+      target="_blank"
+      rel="noreferrer"
+    >
+      zqf3229294/Text23D
+    </a>
+  </span>
+  <span class="footer-contact">
+    Questions or suggestions about this site's design or construction?
+    <a href="mailto:info@littletreenuts.com">info@littletreenuts.com</a>
+  </span>
+  <span class="footer-version">v0.1.0-beta</span>
+</footer>
