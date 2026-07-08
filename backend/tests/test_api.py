@@ -1,7 +1,10 @@
+import threading
+import time
+
 from fastapi.testclient import TestClient
 
 from app.main import create_app
-from app.models import GenerationStatus
+from app.models import GenerationEventType, GenerationStatus
 from tests.conftest import FakeRunner
 
 
@@ -55,6 +58,50 @@ def test_conversation_message_generation_flow(app):
                 if payload["type"] == "done":
                     assert payload["generation"]["status"] == "succeeded"
                     break
+
+
+def test_generation_stream_stays_open_for_active_generation(app):
+    repository = app.state.repository
+    conversation = repository.create_conversation("Stream")
+    generation = repository.create_generation(conversation["id"], "stream progress")
+    received = []
+
+    def write_progress():
+        time.sleep(0.2)
+        repository.update_generation(
+            generation["id"],
+            status=GenerationStatus.running.value,
+        )
+        repository.create_generation_event(
+            generation["id"],
+            GenerationEventType.status.value,
+            "first live event",
+        )
+        time.sleep(0.2)
+        repository.create_generation_event(
+            generation["id"],
+            GenerationEventType.status.value,
+            "second live event",
+        )
+        repository.update_generation(
+            generation["id"],
+            status=GenerationStatus.succeeded.value,
+        )
+
+    with TestClient(app) as client:
+        writer = threading.Thread(target=write_progress)
+        writer.start()
+        with client.websocket_connect(
+            f"/api/generations/{generation['id']}/stream"
+        ) as websocket:
+            for _ in range(3):
+                received.append(websocket.receive_json())
+        writer.join()
+
+    assert [payload["type"] for payload in received] == ["event", "event", "done"]
+    assert received[0]["event"]["message"] == "first live event"
+    assert received[1]["event"]["message"] == "second live event"
+    assert received[2]["generation"]["status"] == GenerationStatus.succeeded.value
 
 
 def test_missing_conversation_returns_404(app):
