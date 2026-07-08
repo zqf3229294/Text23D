@@ -330,6 +330,8 @@ class WorkerFreeCADSession(FreeCADSession):
             self.view_count += 1
             if self.settings.freecad_worker_view_backend == "summary":
                 return self._summary_view()
+            if self.settings.freecad_worker_view_backend == "solid":
+                return self._solid_view()
             if self.settings.freecad_worker_view_backend == "pyvista":
                 return self._pyvista_view()
             view_path = self.session_dir / f"view_{self.view_count:02d}.png"
@@ -489,6 +491,62 @@ class WorkerFreeCADSession(FreeCADSession):
         self._append_result_log(result)
         return result
 
+    def _solid_view(self) -> FreeCADToolResult:
+        solid_response = self._request("export_solid_view", {})
+        solid_result = self._tool_result_from_response(solid_response)
+        if not solid_result.ok:
+            return self._summary_view(
+                message=(
+                    "Solid view requested, but the worker could not export "
+                    "B-Rep view data. Captured a stable SVG summary instead."
+                ),
+                extra_content={
+                    "requested_view_backend": "solid",
+                    "render_error": str(
+                        solid_result.content.get("error") or solid_result.content
+                    ),
+                },
+            )
+        self._accept_success("export_solid_view", solid_result)
+
+        payload = solid_result.content.get("solid_view")
+        if not isinstance(payload, dict):
+            payload = solid_result.content
+
+        view_path = self.session_dir / f"view_{self.view_count:02d}.png"
+        try:
+            from .solid_view_renderer import render_solid_view_preview
+
+            render_info = render_solid_view_preview(payload, view_path)
+        except Exception as exc:
+            self._append_log(f"SOLID VIEW RENDER ERROR\n{traceback.format_exc()}")
+            return self._summary_view(
+                message=(
+                    "Solid view requested, but backend rendering failed. "
+                    "Captured a stable SVG summary instead."
+                ),
+                extra_content={
+                    "requested_view_backend": "solid",
+                    "render_error": str(exc),
+                },
+            )
+
+        result = FreeCADToolResult(
+            ok=True,
+            asset_path=view_path,
+            content={
+                "message": (
+                    "Rendered a PNG view from the live FreeCAD solid B-Rep data."
+                ),
+                "image_path": str(view_path),
+                "objects": self.last_objects,
+                "view_backend": "solid",
+                "render": render_info,
+            },
+        )
+        self._append_result_log(result)
+        return result
+
     def _summary_view(
         self,
         message: str | None = None,
@@ -506,8 +564,9 @@ class WorkerFreeCADSession(FreeCADSession):
                 "message": message
                 or (
                     "Captured a stable SVG view summary. Set "
-                    "TEXT23D_FREECAD_WORKER_VIEW_BACKEND=pyvista for backend "
-                    "PNG screenshots or gui to try native FreeCAD viewport capture."
+                    "TEXT23D_FREECAD_WORKER_VIEW_BACKEND=solid for B-Rep PNG "
+                    "views, pyvista for mesh PNG screenshots, or gui to try "
+                    "native FreeCAD viewport capture."
                 ),
                 "image_path": str(view_path),
                 "objects": self.last_objects,
@@ -687,6 +746,14 @@ class ReplayFreeCADSession(FreeCADSession):
             and self.last_result.stl_path is not None
         ):
             return self._pyvista_view()
+        if self.settings.freecad_worker_view_backend == "solid":
+            return self._summary_view(
+                message=(
+                    "Solid B-Rep view is only available with the persistent "
+                    "FreeCAD worker backend. Captured a stable SVG summary instead."
+                ),
+                extra_content={"requested_view_backend": "solid"},
+            )
         return self._summary_view()
 
     def _pyvista_view(self) -> FreeCADToolResult:

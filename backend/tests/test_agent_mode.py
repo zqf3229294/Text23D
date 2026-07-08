@@ -70,6 +70,43 @@ class FakeWorkerClient:
                     "objects": self.objects,
                 },
             }
+        if command == "export_solid_view":
+            return {
+                "ok": True,
+                "content": {
+                    "message": "solid view exported",
+                    "objects": self.objects,
+                    "solid_view": {
+                        "document": "Text23D",
+                        "source": "freecad-brep",
+                        "object_count": 1,
+                        "truncated": False,
+                        "objects": [
+                            {
+                                "name": "CubeWithThroughHole",
+                                "label": "Cube with 10 mm through-hole",
+                                "type": "Part::Cut",
+                                "bounds": {
+                                    "x_min": 0.0,
+                                    "x_max": 40.0,
+                                    "y_min": 0.0,
+                                    "y_max": 40.0,
+                                    "z_min": 0.0,
+                                    "z_max": 40.0,
+                                },
+                                "solid_count": 1,
+                                "face_count": 8,
+                                "edge_count": 18,
+                                "vertex_count": 16,
+                                "edges": [
+                                    [[0.0, 0.0, 0.0], [40.0, 0.0, 0.0]],
+                                    [[40.0, 0.0, 0.0], [40.0, 40.0, 0.0]],
+                                ],
+                            }
+                        ],
+                    },
+                },
+            }
         if command == "export_model":
             output_dir = Path(args["output_dir"])
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -352,6 +389,64 @@ def test_worker_pyvista_view_backend_exports_mesh_and_renders_png(tmp_path, monk
     assert Path(screenshot["asset_path"]).suffix == ".png"
     assert json.loads(screenshot["data_json"])["view_backend"] == "pyvista"
     assert any(command == "export_preview_mesh" for command, _args in clients[0].requests)
+    assert all(command != "get_view" for command, _args in clients[0].requests)
+
+
+def test_worker_solid_view_backend_exports_brep_projection_png(tmp_path, monkeypatch):
+    from app import solid_view_renderer
+
+    def fake_render(payload: dict, output_path: Path, **_kwargs):
+        assert payload["source"] == "freecad-brep"
+        output_path.write_bytes(b"\x89PNG\r\n\x1a\n")
+        return {
+            "image_path": str(output_path),
+            "object_count": payload["object_count"],
+            "edge_count": 2,
+            "source": payload["source"],
+            "views": ["ISO", "TOP", "FRONT", "RIGHT"],
+            "renderer": "solid-projection",
+        }
+
+    monkeypatch.setattr(solid_view_renderer, "render_solid_view_preview", fake_render)
+    settings = Settings(
+        database_path=tmp_path / "db.sqlite3",
+        storage_dir=tmp_path / "artifacts",
+        cad_kernel="freecad",
+        generation_mode="agent",
+        freecad_agent_backend="worker",
+        freecad_worker_view_backend="solid",
+        llm_provider="mock",
+    )
+    repository = SQLiteRepository(settings.database_path)
+    runner = FakeFreeCADRunner()
+    clients = []
+
+    def client_factory(log_path: Path):
+        client = FakeWorkerClient(log_path)
+        clients.append(client)
+        return client
+
+    agent = CADAgent(
+        settings,
+        repository,
+        FreeCADSessionManager(settings, runner, worker_client_factory=client_factory),
+    )
+    service = GenerationService(settings, repository, MockLLMProvider(), runner, agent)
+    conversation = repository.create_conversation()
+    repository.create_message(conversation["id"], MessageRole.user, "make a cube")
+    generation = repository.create_generation(conversation["id"], "make a cube")
+
+    asyncio.run(service.run_generation(generation["id"]))
+
+    events = repository.list_generation_events(generation["id"])
+    screenshot = next(event for event in events if event["event_type"] == "screenshot")
+    data = json.loads(screenshot["data_json"])
+    assert Path(screenshot["asset_path"]).suffix == ".png"
+    assert data["view_backend"] == "solid"
+    assert data["render"]["renderer"] == "solid-projection"
+    assert "mesh_path" not in data
+    assert any(command == "export_solid_view" for command, _args in clients[0].requests)
+    assert all(command != "export_preview_mesh" for command, _args in clients[0].requests)
     assert all(command != "get_view" for command, _args in clients[0].requests)
 
 

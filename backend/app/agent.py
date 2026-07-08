@@ -497,8 +497,8 @@ FREECAD_TOOLS: list[dict[str, Any]] = [
         "name": "get_view",
         "description": (
             "Capture a server-side view of the current FreeCAD model. Depending on "
-            "backend settings this may return a rendered PNG screenshot or a stable "
-            "SVG/text summary."
+            "backend settings this may return a solid B-Rep projection PNG, a rendered "
+            "mesh PNG screenshot, a native viewport PNG, or a stable SVG/text summary."
         ),
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
@@ -522,7 +522,8 @@ Rules:
 - Prefer parametric FreeCAD document objects such as Part::Box, Part::Cylinder, Part::Cut, and Part::Fuse.
 - Keep each execute_code input under {max_code_chars} characters.
 - Inspect progress with get_objects and get_view when useful. get_view may return
-  a rendered image of the model or a stable object summary depending on backend settings.
+  a solid B-Rep projection image, another rendered image of the model, or a stable
+  object summary depending on backend settings.
 - Call export_model before you give the final answer.
 - If a tool returns an error, repair with a smaller snippet.
 """
