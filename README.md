@@ -19,6 +19,11 @@ A public demo is hosted at [https://www.littletreenuts.com](https://www.littletr
 Use it to try the browser-based 3D CAD generation workflow without setting up the project locally.
 This is an early beta demo. Features may be incomplete or change without notice.
 
+## Contact
+
+Questions or suggestions about this site's design or construction? Email
+[info@littletreenuts.com](mailto:info@littletreenuts.com).
+
 ## Repository Layout
 
 ```text
