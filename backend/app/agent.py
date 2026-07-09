@@ -205,13 +205,17 @@ class CADAgent:
                 f"Agent iteration {iteration}: asking the model for the next FreeCAD action.",
                 data={"iteration": iteration},
             )
-            response = await client.messages.create(
-                model=self.settings.anthropic_model,
-                max_tokens=self.settings.llm_max_tokens,
-                system=_agent_system_prompt(self.settings.agent_max_code_chars),
-                tools=FREECAD_TOOLS,
-                messages=messages,
-            )
+            request: dict[str, Any] = {
+                "model": self.settings.anthropic_model,
+                "max_tokens": self.settings.llm_max_tokens,
+                "system": _agent_system_prompt(self.settings.agent_max_code_chars),
+                "tools": FREECAD_TOOLS,
+                "messages": messages,
+            }
+            cache_control = _anthropic_agent_cache_control(self.settings)
+            if cache_control is not None:
+                request["cache_control"] = cache_control
+            response = await client.messages.create(**request)
             if self._is_cancelled(generation_id):
                 return AgentRunResult(
                     success=False,
@@ -527,6 +531,15 @@ Rules:
 - Call export_model before you give the final answer.
 - If a tool returns an error, repair with a smaller snippet.
 """
+
+
+def _anthropic_agent_cache_control(settings: Settings) -> dict[str, str] | None:
+    if not settings.anthropic_agent_prompt_cache:
+        return None
+    cache_control = {"type": "ephemeral"}
+    if settings.anthropic_agent_prompt_cache_ttl == "1h":
+        cache_control["ttl"] = "1h"
+    return cache_control
 
 
 def _anthropic_context(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:

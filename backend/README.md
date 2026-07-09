@@ -55,6 +55,8 @@ Copy the root `.env.example` to `.env` and adjust:
 - `TEXT23D_IMAGE_ALLOWED_CONTENT_TYPES=["image/png","image/jpeg","image/webp"]`
 - `TEXT23D_OPENAI_API_KEY=...`
 - `TEXT23D_ANTHROPIC_API_KEY=...`
+- `TEXT23D_ANTHROPIC_AGENT_PROMPT_CACHE=false|true`
+- `TEXT23D_ANTHROPIC_AGENT_PROMPT_CACHE_TTL=5m|1h`
 - `TEXT23D_DEEPSEEK_API_KEY=...`
 - `TEXT23D_DEEPSEEK_SUPPORTS_IMAGES=false|true`
 - `TEXT23D_CAD_KERNEL=cadquery|freecad`
@@ -104,6 +106,8 @@ TEXT23D_GENERATION_MODE=agent
 TEXT23D_CAD_KERNEL=freecad
 TEXT23D_LLM_PROVIDER=anthropic
 TEXT23D_ANTHROPIC_API_KEY=your_anthropic_key
+TEXT23D_ANTHROPIC_AGENT_PROMPT_CACHE=true
+TEXT23D_ANTHROPIC_AGENT_PROMPT_CACHE_TTL=5m
 TEXT23D_FREECAD_AGENT_BACKEND=worker
 TEXT23D_FREECAD_PYTHON=C:\Program Files\FreeCAD 1.1\bin\python.exe
 TEXT23D_FREECAD_GUI_EXECUTABLE=
@@ -114,6 +118,8 @@ TEXT23D_AGENT_MAX_CODE_CHARS=12000
 ```
 
 Agent mode V1 supports `mock` for local smoke tests and `anthropic` for Claude-style tool use. The default FreeCAD agent backend starts a persistent FreeCAD worker per conversation, so follow-up prompts can modify the same live document. `TEXT23D_FREECAD_WORKER_VIEW_BACKEND=solid` asks the worker for top-level FreeCAD solid B-Rep edge data and renders a PNG for Claude without exporting a temporary STL mesh. `pyvista` remains available when you want a mesh-rendered PNG preview; if VTK/OpenGL cannot initialize, the backend falls back to a CPU STL renderer, and if rendering fails entirely it returns a stable SVG object summary. Set `TEXT23D_FREECAD_WORKER_VIEW_BACKEND=gui` only when native FreeCAD viewport capture is stable on your machine. On Windows, point `TEXT23D_FREECAD_PYTHON` to FreeCAD's bundled `python.exe`; `FreeCAD.exe` can open a GUI window without answering the backend's stdin/stdout worker protocol. Set `TEXT23D_FREECAD_AGENT_BACKEND=replay` to use the older per-tool `FreeCADCmd` replay fallback.
+
+For Anthropic agent mode, `TEXT23D_ANTHROPIC_AGENT_PROMPT_CACHE=true` enables automatic prompt caching on each Claude Messages API call. Start with `TEXT23D_ANTHROPIC_AGENT_PROMPT_CACHE_TTL=5m`; use `1h` only when you expect long pauses between follow-up turns and accept the higher cache-write cost.
 
 Linux/headless deployments should run the same worker under a virtual display such as `xvfb-run` or a managed `Xvfb :99` with `DISPLAY=:99`. Text23D does not orchestrate Xvfb in this Windows-first version.
 
