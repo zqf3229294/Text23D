@@ -813,3 +813,67 @@ def test_anthropic_agent_sends_get_view_png_as_tool_result_image(tmp_path, monke
     assert tool_result["content"][0]["source"]["data"]
     assert tool_result["content"][1]["type"] == "text"
     assert "FreeCAD tool result metadata" in tool_result["content"][1]["text"]
+
+
+def test_anthropic_agent_adds_prompt_cache_when_enabled(tmp_path, monkeypatch):
+    captured_requests = []
+
+    class FakeMessages:
+        async def create(self, **kwargs):
+            captured_requests.append(kwargs)
+            return types.SimpleNamespace(
+                content=[
+                    types.SimpleNamespace(
+                        type="text",
+                        text="Ready to export.",
+                    )
+                ]
+            )
+
+    class FakeAsyncAnthropic:
+        def __init__(self, api_key: str):
+            self.messages = FakeMessages()
+
+    monkeypatch.setitem(
+        sys.modules,
+        "anthropic",
+        types.SimpleNamespace(AsyncAnthropic=FakeAsyncAnthropic),
+    )
+    settings = Settings(
+        database_path=tmp_path / "db.sqlite3",
+        storage_dir=tmp_path / "artifacts",
+        cad_kernel="freecad",
+        generation_mode="agent",
+        freecad_agent_backend="worker",
+        llm_provider="anthropic",
+        anthropic_api_key="test-key",
+        anthropic_agent_prompt_cache=True,
+        anthropic_agent_prompt_cache_ttl="1h",
+    )
+    repository = SQLiteRepository(settings.database_path)
+    runner = FakeFreeCADRunner()
+    agent = CADAgent(
+        settings,
+        repository,
+        FreeCADSessionManager(
+            settings,
+            runner,
+            worker_client_factory=lambda log_path: FakeWorkerClient(log_path),
+        ),
+    )
+    conversation = repository.create_conversation()
+    generation = repository.create_generation(conversation["id"], "make a bracket")
+
+    result = asyncio.run(
+        agent.run(
+            generation,
+            [{"role": "user", "content": "make a bracket"}],
+            tmp_path / "generation",
+        )
+    )
+
+    assert result.success
+    assert captured_requests[0]["cache_control"] == {
+        "type": "ephemeral",
+        "ttl": "1h",
+    }

@@ -44,6 +44,8 @@ class Settings(BaseSettings):
 
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-sonnet-4-5"
+    anthropic_agent_prompt_cache: bool = False
+    anthropic_agent_prompt_cache_ttl: Literal["5m", "1h"] = "5m"
 
     deepseek_api_key: str | None = None
     deepseek_base_url: str = "https://api.deepseek.com"
