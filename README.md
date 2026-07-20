@@ -35,6 +35,9 @@ docs/         Architecture and API notes
 data/         Local runtime files, ignored by Git
 ```
 
+See [docs/FOLDER_STRUCTURE.md](docs/FOLDER_STRUCTURE.md) for an annotated map
+of the complete repository, subsystem boundaries, and generated local paths.
+
 ## Prerequisites
 
 - Python 3.11+
