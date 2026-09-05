@@ -27,10 +27,10 @@ The backend becomes the agent host:
 
 1. FastAPI creates a generation and starts `CADAgent`.
 2. The agent opens a server-managed `FreeCADSession`.
-3. For `mock`, the agent runs a deterministic local tool sequence. For `anthropic`, the agent calls Claude with FreeCAD tool definitions.
+3. For `mock`, the agent runs a deterministic local tool sequence. For `anthropic`, the agent calls Claude with FreeCAD tool definitions. For `deepseek`, the agent calls DeepSeek's OpenAI-compatible Responses API with equivalent function definitions.
 4. Tool calls are dispatched through the FreeCAD gateway: `create_document`, `execute_code`, `get_objects`, `get_object`, `get_view`, and `export_model`.
 5. The default gateway starts a persistent GUI-capable FreeCAD worker per conversation and communicates over JSON lines on stdin/stdout. On Windows this should launch through FreeCAD's bundled `python.exe`; `FreeCAD.exe` is only a fallback because GUI executables may not keep stdout connected.
-6. The worker keeps the live document open across generations, executes validated snippets directly, and exports `FCStd`, `STEP`, and `STL`. For `get_view`, `TEXT23D_FREECAD_WORKER_VIEW_BACKEND=pyvista` exports a temporary STL mesh and renders a backend PNG screenshot with PyVista, falling back to a CPU STL renderer when VTK/OpenGL is unavailable; Anthropic agent mode sends that PNG back to Claude as an image tool result. `summary` returns a stable SVG object summary, and native FreeCAD viewport screenshots remain available with `TEXT23D_FREECAD_WORKER_VIEW_BACKEND=gui`.
+6. The worker keeps the live document open across generations, executes validated snippets directly, and exports `FCStd`, `STEP`, and `STL`. For `get_view`, `TEXT23D_FREECAD_WORKER_VIEW_BACKEND=pyvista` exports a temporary STL mesh and renders a backend PNG screenshot with PyVista, falling back to a CPU STL renderer when VTK/OpenGL is unavailable; Anthropic and vision-enabled DeepSeek agent modes send that PNG back to the model as an image tool result. `summary` returns a stable SVG object summary, and native FreeCAD viewport screenshots remain available with `TEXT23D_FREECAD_WORKER_VIEW_BACKEND=gui`.
 7. `TEXT23D_FREECAD_AGENT_BACKEND=replay` keeps the older per-tool `FreeCADCmd` script replay fallback.
 8. Each status, tool call, result, view asset, error, and final artifact event is stored in SQLite.
 9. Angular loads event history with `GET /api/generations/{id}/events` and receives live updates through `WS /api/generations/{id}/stream`.
@@ -57,7 +57,7 @@ Provider selection is controlled by `TEXT23D_LLM_PROVIDER`:
 
 Script-mode providers implement the same internal contract: conversation messages in, `assistant_summary` plus CAD-kernel-specific source out.
 
-Agent mode currently supports `mock` and `anthropic`. DeepSeek/OpenAI-compatible providers continue to work in script mode and can be added to the agent loop later if their tool and image-result behavior is verified.
+Agent mode supports `mock`, `anthropic`, and `deepseek`. DeepSeek vision agent mode requires `deepseek-v4-flash-vision-exp` with `TEXT23D_DEEPSEEK_SUPPORTS_IMAGES=true`; it receives FreeCAD screenshots as `input_image` function outputs. Generic OpenAI-compatible providers continue to work in script mode.
 
 Image input is guarded by `TEXT23D_IMAGE_INPUT_ENABLED`. When enabled, the browser uploads raw image bytes to the backend before message submission. The message references uploaded attachment IDs, and provider adapters convert stored images into the provider's multimodal format.
 

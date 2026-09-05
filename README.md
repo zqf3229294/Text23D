@@ -155,6 +155,21 @@ In agent mode the backend owns the LLM key, runs the tool loop, executes the Fre
 
 For Anthropic agent mode, `TEXT23D_ANTHROPIC_AGENT_PROMPT_CACHE=true` enables automatic prompt caching across the Claude tool loop. Start with `TEXT23D_ANTHROPIC_AGENT_PROMPT_CACHE_TTL=5m`; switch to `1h` only when long pauses between follow-up turns matter enough to justify the higher cache-write price.
 
+DeepSeek agent mode uses the OpenAI-compatible Responses API. Use its vision model to let the agent inspect FreeCAD view screenshots and user image attachments:
+
+```text
+TEXT23D_GENERATION_MODE=agent
+TEXT23D_CAD_KERNEL=freecad
+TEXT23D_LLM_PROVIDER=deepseek
+TEXT23D_DEEPSEEK_API_KEY=your_deepseek_key
+TEXT23D_DEEPSEEK_BASE_URL=https://api.deepseek.com
+TEXT23D_DEEPSEEK_MODEL=deepseek-v4-flash-vision-exp
+TEXT23D_DEEPSEEK_SUPPORTS_IMAGES=true
+TEXT23D_FREECAD_AGENT_BACKEND=worker
+```
+
+`deepseek-v4-flash-vision-exp` is the DeepSeek model that accepts image inputs. Keep `TEXT23D_DEEPSEEK_SUPPORTS_IMAGES=false` only for text-only DeepSeek models; agent tool calls still work, but FreeCAD screenshots are sent as metadata rather than images.
+
 For future Linux/headless deployment, run the worker under `xvfb-run` or a managed `Xvfb :99` with `DISPLAY=:99`; this Windows-first version does not manage Xvfb itself.
 
 Image input remains off by default behind a feature flag:

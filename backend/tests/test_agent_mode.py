@@ -877,3 +877,78 @@ def test_anthropic_agent_adds_prompt_cache_when_enabled(tmp_path, monkeypatch):
         "type": "ephemeral",
         "ttl": "1h",
     }
+
+
+def test_deepseek_agent_uses_responses_tools_and_returns_view_image(tmp_path, monkeypatch):
+    captured_requests = []
+
+    class FakeResponses:
+        async def create(self, **kwargs):
+            captured_requests.append(kwargs)
+            if len(captured_requests) == 1:
+                return types.SimpleNamespace(
+                    output=[
+                        {
+                            "type": "function_call",
+                            "call_id": "call_get_view",
+                            "name": "get_view",
+                            "arguments": "{}",
+                        }
+                    ],
+                    output_text="",
+                )
+            return types.SimpleNamespace(output=[], output_text="The view looks correct.")
+
+    class FakeAsyncOpenAI:
+        def __init__(self, **kwargs):
+            self.responses = FakeResponses()
+
+    monkeypatch.setitem(
+        sys.modules,
+        "openai",
+        types.SimpleNamespace(AsyncOpenAI=FakeAsyncOpenAI),
+    )
+    settings = Settings(
+        database_path=tmp_path / "db.sqlite3",
+        storage_dir=tmp_path / "artifacts",
+        cad_kernel="freecad",
+        generation_mode="agent",
+        freecad_agent_backend="worker",
+        freecad_worker_view_backend="gui",
+        llm_provider="deepseek",
+        deepseek_api_key="test-key",
+        deepseek_model="deepseek-v4-flash-vision-exp",
+        deepseek_supports_images=True,
+    )
+    repository = SQLiteRepository(settings.database_path)
+    runner = FakeFreeCADRunner()
+    agent = CADAgent(
+        settings,
+        repository,
+        FreeCADSessionManager(
+            settings,
+            runner,
+            worker_client_factory=lambda log_path: FakeWorkerClient(log_path),
+        ),
+    )
+    conversation = repository.create_conversation()
+    generation = repository.create_generation(conversation["id"], "inspect the model")
+
+    result = asyncio.run(
+        agent.run(
+            generation,
+            [{"role": "user", "content": "inspect the model"}],
+            tmp_path / "generation",
+        )
+    )
+
+    assert result.success
+    assert len(captured_requests) == 2
+    assert captured_requests[0]["model"] == "deepseek-v4-flash-vision-exp"
+    assert captured_requests[0]["tools"][0]["type"] == "function"
+    tool_output = captured_requests[1]["input"][-1]
+    assert tool_output["type"] == "function_call_output"
+    assert tool_output["call_id"] == "call_get_view"
+    assert tool_output["output"][0]["type"] == "input_text"
+    assert tool_output["output"][1]["type"] == "input_image"
+    assert tool_output["output"][1]["image_url"].startswith("data:image/png;base64,")

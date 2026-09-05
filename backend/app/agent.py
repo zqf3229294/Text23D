@@ -12,7 +12,12 @@ from .config import Settings
 from .db import SQLiteRepository
 from .freecad_agent import FreeCADSession, FreeCADSessionManager, FreeCADToolResult
 from .models import GenerationEventType
-from .providers.multimodal import anthropic_content_blocks, message_text
+from .providers.multimodal import (
+    anthropic_content_blocks,
+    attachment_summary,
+    message_text,
+    openai_response_content,
+)
 
 
 @dataclass
@@ -69,10 +74,11 @@ class CADAgent:
                 return await self._run_mock(generation["id"], context, session)
             if self.settings.llm_provider == "anthropic":
                 return await self._run_anthropic(generation["id"], context, session)
+            if self.settings.llm_provider == "deepseek":
+                return await self._run_deepseek(generation["id"], context, session)
             message = (
-                "Agent mode V1 supports TEXT23D_LLM_PROVIDER=mock for local testing "
-                "or anthropic for Claude tool use. Use script mode for DeepSeek/OpenAI "
-                "until their tool/image behavior is wired into this agent loop."
+                "Agent mode supports TEXT23D_LLM_PROVIDER=mock, anthropic, or deepseek. "
+                "Use script mode for OpenAI and generic OpenAI-compatible providers."
             )
             self._event(
                 generation["id"],
@@ -330,6 +336,119 @@ class CADAgent:
                 )
             messages.append({"role": "user", "content": tool_results})
 
+    async def _run_deepseek(
+        self,
+        generation_id: str,
+        context: list[dict[str, Any]],
+        session: FreeCADSession,
+    ) -> AgentRunResult:
+        """Run the FreeCAD tool loop through DeepSeek's OpenAI-compatible Responses API."""
+        if not self.settings.deepseek_api_key:
+            return AgentRunResult(
+                success=False,
+                assistant_summary="DeepSeek API key is not configured.",
+                error="TEXT23D_DEEPSEEK_API_KEY is required for agent mode.",
+                log_path=session.tool_log_path,
+            )
+        try:
+            from openai import AsyncOpenAI
+        except ImportError as exc:
+            return AgentRunResult(
+                success=False,
+                assistant_summary="OpenAI SDK is not installed.",
+                error=str(exc),
+                log_path=session.tool_log_path,
+            )
+
+        client = AsyncOpenAI(
+            api_key=self.settings.deepseek_api_key,
+            base_url=self.settings.deepseek_base_url,
+        )
+        input_items = _deepseek_context(context, self.settings.deepseek_supports_images)
+        started = time.monotonic()
+        tool_calls = 0
+        iteration = 0
+        final_text = ""
+
+        while True:
+            if self._is_cancelled(generation_id):
+                return _cancelled_agent_result(session, tool_calls)
+            if time.monotonic() - started > self.settings.agent_max_runtime_seconds:
+                return _agent_limit_result(session, tool_calls, "runtime")
+            if tool_calls >= self.settings.agent_max_tool_calls:
+                return _agent_limit_result(session, tool_calls, "tool-call")
+
+            iteration += 1
+            self._event(
+                generation_id,
+                GenerationEventType.status,
+                f"Agent iteration {iteration}: asking the DeepSeek model for the next FreeCAD action.",
+                data={"iteration": iteration},
+            )
+            response = await client.responses.create(
+                model=self.settings.deepseek_model,
+                instructions=_agent_system_prompt(self.settings.agent_max_code_chars),
+                tools=_openai_response_tools(),
+                input=input_items,
+                max_output_tokens=self.settings.llm_max_tokens,
+            )
+            if self._is_cancelled(generation_id):
+                return _cancelled_agent_result(session, tool_calls)
+
+            output_items = [_response_item_to_dict(item) for item in response.output]
+            text = str(getattr(response, "output_text", "") or "").strip()
+            if text:
+                final_text = text
+                self._event(generation_id, GenerationEventType.status, text[:1000])
+
+            tool_items = [
+                item for item in output_items if item.get("type") == "function_call"
+            ]
+            if not tool_items:
+                if session.last_result is not None and session.last_result.success:
+                    return self._agent_success(session, final_text or "FreeCAD agent generated and exported the model.", tool_call_count=tool_calls)
+                export = await self._execute_tool(generation_id, session, "export_model", {})
+                if not export.ok:
+                    return AgentRunResult(
+                        success=False,
+                        assistant_summary=final_text or "The agent stopped before export.",
+                        error=str(export.content.get("error") or export.content),
+                        log_path=session.tool_log_path,
+                        tool_call_count=tool_calls,
+                    )
+                return self._agent_success(session, final_text or "FreeCAD agent generated and exported the model.", tool_call_count=tool_calls)
+
+            input_items.extend(output_items)
+            for item in tool_items:
+                if self._is_cancelled(generation_id):
+                    return _cancelled_agent_result(session, tool_calls)
+                if tool_calls >= self.settings.agent_max_tool_calls:
+                    break
+                tool_calls += 1
+                try:
+                    arguments = json.loads(str(item.get("arguments") or "{}"))
+                except json.JSONDecodeError:
+                    arguments = {}
+                if not isinstance(arguments, dict):
+                    arguments = {}
+                name = str(item.get("name") or "")
+                result = await self._execute_tool(generation_id, session, name, arguments)
+                if not result.ok and result.content.get("fatal"):
+                    error = str(result.content.get("error") or result.content)
+                    if session.last_result is not None and session.last_result.success:
+                        self._event(generation_id, GenerationEventType.error, "FreeCAD worker stopped during a later refinement. Using the latest successful checkpoint.", data={"error": error, "recovered_from_checkpoint": True})
+                        return self._agent_success(session, final_text or "The FreeCAD worker stopped during a later refinement, so I exported the latest successful checkpoint.", tool_call_count=tool_calls)
+                    return AgentRunResult(success=False, assistant_summary="The FreeCAD worker stopped responding.", error=error, log_path=session.tool_log_path, tool_call_count=tool_calls)
+                input_items.append(
+                    {
+                        "type": "function_call_output",
+                        "call_id": item.get("call_id"),
+                        "output": _deepseek_tool_result_content(
+                            name, result, self.settings.deepseek_supports_images
+                        ),
+                    }
+                )
+
     async def _execute_tool(
         self,
         generation_id: str,
@@ -563,6 +682,82 @@ def _anthropic_context(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return result or [{"role": "user", "content": "Create a simple FreeCAD part."}]
 
 
+def _deepseek_context(
+    messages: list[dict[str, Any]],
+    supports_images: bool,
+) -> list[dict[str, Any]]:
+    """Convert stored conversation messages to DeepSeek Responses API input items."""
+    result: list[dict[str, Any]] = []
+    for item in messages:
+        role = item.get("role")
+        if role not in {"user", "assistant"}:
+            continue
+        content = (
+            item.get("content", "")
+            if role == "assistant"
+            else (
+                openai_response_content(item)
+                if supports_images
+                else attachment_summary(item)
+            )
+        )
+        result.append({"role": role, "content": content})
+    return result or [{"role": "user", "content": "Create a simple FreeCAD part."}]
+
+
+def _openai_response_tools() -> list[dict[str, Any]]:
+    """Translate the shared Anthropic-style tool declarations to Responses tools."""
+    return [
+        {
+            "type": "function",
+            "name": tool["name"],
+            "description": tool["description"],
+            "parameters": tool["input_schema"],
+        }
+        for tool in FREECAD_TOOLS
+    ]
+
+
+def _response_item_to_dict(item: Any) -> dict[str, Any]:
+    if isinstance(item, dict):
+        return item
+    if hasattr(item, "model_dump"):
+        return item.model_dump(exclude_none=True)
+    if hasattr(item, "to_dict"):
+        return item.to_dict()
+    return {
+        "type": getattr(item, "type", None),
+        "call_id": getattr(item, "call_id", None),
+        "name": getattr(item, "name", None),
+        "arguments": getattr(item, "arguments", None),
+    }
+
+
+def _cancelled_agent_result(session: FreeCADSession, tool_calls: int) -> AgentRunResult:
+    return AgentRunResult(
+        success=False,
+        assistant_summary="Generation cancelled.",
+        error="Generation cancelled by user.",
+        log_path=session.tool_log_path,
+        tool_call_count=tool_calls,
+    )
+
+
+def _agent_limit_result(
+    session: FreeCADSession,
+    tool_calls: int,
+    limit: str,
+) -> AgentRunResult:
+    label = "runtime" if limit == "runtime" else "tool-call"
+    return AgentRunResult(
+        success=False,
+        assistant_summary=f"Agent {label} limit reached.",
+        error=f"Agent {label} limit reached.",
+        log_path=session.tool_log_path,
+        tool_call_count=tool_calls,
+    )
+
+
 def _merge_anthropic_content(left, right):
     if isinstance(left, str) and isinstance(right, str):
         return f"{left}\n\n{right}"
@@ -691,6 +886,39 @@ def _anthropic_tool_result_content(
             },
         },
         {"type": "text", "text": text},
+    ]
+
+
+def _deepseek_tool_result_content(
+    tool_name: str,
+    result: FreeCADToolResult,
+    supports_images: bool,
+) -> str | list[dict[str, Any]]:
+    """Return Responses API tool output, including a PNG view for vision models."""
+    text = "FreeCAD tool result metadata:\n" + json.dumps(result.content, default=str)
+    if (
+        not supports_images
+        or tool_name != "get_view"
+        or not result.ok
+        or result.asset_path is None
+    ):
+        return text
+
+    media_type = _ANTHROPIC_TOOL_IMAGE_MEDIA_TYPES.get(result.asset_path.suffix.lower())
+    if media_type is None:
+        return text
+    try:
+        if result.asset_path.stat().st_size > _MAX_INLINE_TOOL_IMAGE_BYTES:
+            return text
+        encoded = base64.b64encode(result.asset_path.read_bytes()).decode("ascii")
+    except OSError:
+        return text
+    return [
+        {"type": "input_text", "text": text},
+        {
+            "type": "input_image",
+            "image_url": f"data:{media_type};base64,{encoded}",
+        },
     ]
 
 

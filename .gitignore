@@ -18,6 +18,7 @@ coverage/
 # Local runtime data
 data/
 backend/data/
+backend/logs/
 *.sqlite3
 *.db
 
@@ -31,3 +32,6 @@ backend/data/
 Thumbs.db
 .idea/
 .vscode/
+README.pdf
+backend/scripts/windows/*
+docs/FOLDER_STRUCTURE.pdf
